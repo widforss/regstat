@@ -39,6 +39,13 @@ function showCharts() {
         START,
         STOP,
     );
+    var simpleAccChart = initChart(
+        'chart-simple-acc',
+        `Accumulated simple snow observations`,
+        'Registered snow observations',
+        START,
+        STOP,
+    );
     var advancedChart = initChart(
         'chart-advanced',
         `Advanced snow observations per day (${SLOTS} days rolling average)`,
@@ -60,7 +67,13 @@ function showCharts() {
             addSeries(season, accumulateData(data), accChart);
         }
     })
-    fetchData("/api/countsimple", populateChart(simpleChart))
+    fetchData("/api/countsimple", (observations) => {
+        var seasons = makeData(observations);
+        for (var [season, data] of Object.entries(seasons)) {
+            addSeries(season, rollingAverage(data, SLOTS), simpleChart);
+            addSeries(season, accumulateData(data), simpleAccChart);
+        }
+    })
     fetchData("/api/countadvanced", populateChart(advancedChart))
     fetchData("/api/countschemas", populateChart(schemaChart))
 }
