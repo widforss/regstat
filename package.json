@@ -1,0 +1,33 @@
+{
+  "name": "regstat",
+  "version": "0.1.0",
+  "description": "Presents statistics on Regobs data.",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "webpack --config webpack.config.js --mode development",
+    "build": "webpack --config webpack.config.js --mode production"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NVE/regstat.git"
+  },
+  "author": "Aron Widforss (arwi@nve.no)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/NVE/regstat/issues"
+  },
+  "homepage": "https://github.com/NVE/regstat",
+  "dependencies": {
+    "@types/express": "^4.17.11",
+    "@types/request": "^2.48.5",
+    "express": "^4.17.1",
+    "highcharts": "^9.1.0",
+    "json-loader": "^0.5.7",
+    "request": "^2.88.2",
+    "ts-loader": "^7.0.5",
+    "typescript": "^3.9.7",
+    "webpack": "^4.44.2",
+    "webpack-cli": "^3.3.12",
+    "webpack-node-externals": "^3.0.0"
+  }
+}
