@@ -60,22 +60,22 @@ function showCharts() {
         START,
         STOP,
     );
-    fetchData("/api/count", (observations) => {
+    fetchData("./api/count", (observations) => {
         var seasons = makeData(observations);
         for (var [season, data] of Object.entries(seasons)) {
             addSeries(season, rollingAverage(data, SLOTS), countChart);
             addSeries(season, accumulateData(data), accChart);
         }
     })
-    fetchData("/api/countsimple", (observations) => {
+    fetchData("./api/countsimple", (observations) => {
         var seasons = makeData(observations);
         for (var [season, data] of Object.entries(seasons)) {
             addSeries(season, rollingAverage(data, SLOTS), simpleChart);
             addSeries(season, accumulateData(data), simpleAccChart);
         }
     })
-    fetchData("/api/countadvanced", populateChart(advancedChart))
-    fetchData("/api/countschemas", populateChart(schemaChart))
+    fetchData("./api/countadvanced", populateChart(advancedChart))
+    fetchData("./api/countschemas", populateChart(schemaChart))
 }
 
 function populateChart(
