@@ -126,7 +126,7 @@ function serve(port: number, observations: Observation[]) {
         res.send(countedSchemasJson);
     });
 
-    app.listen(port, () => {console.log(`Web server started on port ${port}.`)});
+    app.listen(port, '0.0.0.0', () => {console.log(`Web server started on port ${port}.`)});
 }
 
 function filterSimple(obsPerDate: ObsPerDate, keep: boolean = true): ObsPerDate {
