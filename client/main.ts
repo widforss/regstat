@@ -48,7 +48,7 @@ function showCharts() {
     );
     var schemaChart = initChart(
         'chart-schemas',
-        `Snow observations schemas per day (${SLOTS} days rolling average)`,
+        `Snow observation schemas per day (${SLOTS} days rolling average)`,
         'Registered snow observations',
         START,
         STOP,
