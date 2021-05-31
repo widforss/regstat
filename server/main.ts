@@ -3,10 +3,10 @@ import * as express from "express";
 import { stringify } from "qs";
 import { ObjectFlags } from "typescript";
 
-const port = 10418;
-const url = "https://api.regobs.no/v4/Search";
-const numberOfRecords = 50;
-const regionsA = [
+const PORT = 10418;
+const URL = "https://api.regobs.no/v4/Search";
+const NUMBER_OF_RECORDS = 50;
+const REGIONS_A = [
     3003, // Nordenskiöld Land
     3006, // Finnmarkskysten
     3007, // Vest-Finnmark
@@ -31,7 +31,7 @@ const regionsA = [
     3035, // Vest-Telemark
     3037, // Heiane
 ];
-const regionsB = [
+const REGIONS_B = [
     3001, // Svalbard øst
     3002, // Svalbard vest
     3004, // Svalbard sør
@@ -56,29 +56,41 @@ const regionsB = [
     3045, // Oslo
     3046, // Østfold
 ];
-const regions: number[] = [].concat(regionsA, regionsB);
+const REGIONS: number[] = [].concat(REGIONS_A, REGIONS_B);
 
 interface Observation {
     DtObsTime: string,
     DtRegTime: string,
+    ObsLocation: {
+        ForecastRegionTID: number,
+        ForecastRegionName: string,
+    }
     Summaries: {
         RegistrationTID: number,
         RegistrationName: string,
     }[],
 }
 
-type ObsPerDate = Map<string, Observation[]>;
-type NumPerDate = Map<string, number>;
-type ObsPerSeason = Map<string, ObsPerDate>;
+type Season = string;
+type ObsDate = string;
+type Region = string;
+type RegionId = number;
+type Counted = Map<Season, Map<ObsDate, Map<Region, SimpleAdv>>>;
+
+interface SimpleAdv {
+    observations: {
+        simple: number,
+        advanced: number,
+    },
+    schemas: {
+        simple: number,
+        advanced: number,
+    }
+};
 
 function serve(port: number, observations: Observation[]) {
-    var obsPerSeason = splitObservations(observations);
-    var simplePerSeason = new Map([...obsPerSeason].map(([season, obsPerDate]) =>
-        [season, filterSimple(obsPerDate)]
-    ));
-    var advancedPerSeason = new Map([...obsPerSeason].map(([season, obsPerDate]) =>
-        [season, filterSimple(obsPerDate, false)]
-    ));
+    let counted = count(observations);
+    let countedObsesJson = JSON.stringify(counted, replacer);
 
     const app = express();
     app.use('/static', express.static(`${__dirname}/static`));
@@ -87,117 +99,82 @@ function serve(port: number, observations: Observation[]) {
     });
 
     // All observations counted
-    var countedObses = new Map([...obsPerSeason].map(([season, obsPerDate]) =>
-        [season, countObses(obsPerDate)]
-    ));
-    var countedObsesJson = JSON.stringify(countedObses, replacer);
     app.get('/api/count', (_: void, res: any) => {
         res.set('Content-Type', 'application/json');
         res.send(countedObsesJson);
     });
 
-    // Simple observations counted
-    var countedSimple = new Map([...simplePerSeason].map(([season, obsPerDate]) =>
-        [season, countObses(obsPerDate)]
-    ));
-    var countedSimpleJson = JSON.stringify(countedSimple, replacer);
-    app.get('/api/countsimple', (_: void, res: any) => {
-        res.set('Content-Type', 'application/json');
-        res.send(countedSimpleJson);
-    });
-
-    // Advanced observations counted
-    var countedAdvanced = new Map([...advancedPerSeason].map(([season, obsPerDate]) =>
-        [season, countObses(obsPerDate)]
-    ));
-    var countedAdvancedJson = JSON.stringify(countedAdvanced, replacer);
-    app.get('/api/countadvanced', (_: void, res: any) => {
-        res.set('Content-Type', 'application/json');
-        res.send(countedAdvancedJson);
-    });
-
-    // Schemas counted
-    var countedSchemas = new Map([...obsPerSeason].map(([season, obsPerDate]) =>
-        [season, countSchemas(obsPerDate)]
-    ));
-    var countedSchemasJson = JSON.stringify(countedSchemas, replacer);
-    app.get('/api/countschemas', (_: void, res: any) => {
-        res.set('Content-Type', 'application/json');
-        res.send(countedSchemasJson);
-    });
-
     app.listen(port, '0.0.0.0', () => {console.log(`Web server started on port ${port}.`)});
 }
 
-function filterSimple(obsPerDate: ObsPerDate, keep: boolean = true): ObsPerDate {
-    return new Map([...obsPerDate].map(([date, obses]) => {
-        obses = obses.map((obs) => {
-            var advanced = obs.Summaries
-                .map((summary) => [31, 32].includes(summary.RegistrationTID))
-                .reduce((acc, advanced) => acc || advanced, false);
-            if (keep) {
-                return advanced ? null : obs;
-            } else {
-                return advanced ? obs : null;
+function count(observations: Observation[]): Counted {
+    let regionIds: {[name: string]: number} = {}
+    let counted: Counted = new Map();
+    for (let obs of observations) {
+        let season = getSeason(obs);
+        let date = date2String(getDate(obs));
+        let region = getRegion(obs);
+        let advanced = isAdvanced(obs)
+        let schemas = obs.Summaries.length;
+
+        if (!(region in regionIds)) {
+            regionIds[region] = getRegionId(obs);
+        }
+
+        if (!counted.has(season)) {
+            counted.set(season, new Map());
+        }
+        if (!counted.get(season).has(date)) {
+            counted.get(season).set(date, new Map());
+        }
+        if (!counted.get(season).get(date).has(region)) {
+            let emptyObject = {
+                observations: {
+                    simple: 0,
+                    advanced: 0,
+                },
+                schemas: {
+                    simple: 0,
+                    advanced: 0,
+                }
             }
-        }).filter(Boolean);
-        return [date, obses];
-    }));
-}
-
-function countObses(obsPerDate: ObsPerDate): NumPerDate {
-    return new Map([...obsPerDate].map(([date, obses]) => 
-        [date, obses.length]
-    ))
-}
-
-function countSchemas(obsPerDate: ObsPerDate): NumPerDate {
-    return new Map([...obsPerDate].map(([date, obses]) => {
-        var schemas = obses
-            .map((obs) => obs.Summaries.length)
-            .reduce((acc, len) => acc + len, 0);
-        return [date, schemas];
-    }));
-}
-
-function splitObservations(observations: Observation[]): ObsPerSeason {
-    var splitObs: ObsPerSeason = new Map();
-    for (var obs of observations) {
-        var season = getSeason(obs);
-        var date = date2String(getDate(obs));
-        if (!splitObs.has(season)) {
-            splitObs.set(season, new Map());
+            counted.get(season).get(date).set(region, emptyObject);
         }
-        if (!splitObs.get(season).has(date)) {
-            splitObs.get(season).set(date, []);
+
+        let prev = counted.get(season).get(date).get(region)
+        if (advanced) {
+            prev.observations.advanced += 1
+            prev.schemas.advanced += schemas
+        } else {
+            prev.observations.simple += 1
+            prev.schemas.simple += schemas
         }
-        splitObs.get(season).get(date).push(obs)
     }
 
 
     // Sort the Maps
-    splitObs = new Map([...splitObs].sort((a, b) =>
+    counted = new Map([...counted].sort((a, b) =>
         // Ordering definition for seasons
         parseInt(a[0].slice(0, 4)) - parseInt(b[0].slice(0, 4))
     ).map(([season, dates]) => {
         dates = new Map([...dates].sort((a, b) =>
             // Ordering definition for dates
             new Date(a[0]).getTime() - new Date(b[0]).getTime()
-        ).map(([date, obses]) => {
-            obses = obses.sort((a, b) =>
-                // Ordering definition for observations
-                getDate(a).getTime() - getDate(b).getTime()
-            );
-            return [date, obses]
+        ).map(([date, regions]) => {
+            regions = new Map([...regions].sort((a, b) =>
+                // Ordering definition for regions
+                regionIds[a[0]] - regionIds[b[0]]
+            ))
+            return [date, regions]
         }))
         return [season, dates]
     }));
-    return splitObs;
+    return counted;
 }
 
-function getSeason(observation: Observation) {
-    var date = getDate(observation);
-    var year = new Date(date.getFullYear(), date.getMonth() + 4).getFullYear();
+function getSeason(observation: Observation): Season {
+    let date = getDate(observation);
+    let year = new Date(date.getFullYear(), date.getMonth() + 4).getFullYear();
     return `${year - 1}-${year.toString().slice(2, 4)}`;
 }
 
@@ -205,8 +182,25 @@ function getDate(observation: Observation): Date {
     return new Date(observation.DtObsTime);
 }
 
-function date2String<T>(date: Date): string {
-    return date.toISOString().slice(0, 10);
+function getRegion(observation: Observation): Region {
+    return observation.ObsLocation.ForecastRegionName;
+}
+
+function getRegionId(observation: Observation): RegionId {
+    return observation.ObsLocation.ForecastRegionTID;
+}
+
+function date2String<T>(date: Date): ObsDate {
+    let year = date.getFullYear();
+    let month = (date.getMonth() + 1).toFixed(0).padStart(2, "0");
+    let day = date.getDate().toFixed(0).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function isAdvanced(observation: Observation): boolean {
+    return observation.Summaries
+        .map((summary) => [31, 32].includes(summary.RegistrationTID))
+        .reduce((acc, advanced) => acc || advanced, false);
 }
 
 function downloadObservations(
@@ -221,25 +215,26 @@ function downloadObservations(
         console.error(`Failed to fetch observations count, retrying (${5 - retries}/5)...`)
     }
 
-    var options = {
+    let tomorrow = new Date(Date.now() + 1000 * 3600 * 24)
+    let options = {
         uri: url + "/Count",
         method: 'POST',
         json: {
             LangKey: 1,
             FromDate: new Date(2017, 8, 1).toISOString(),
-            ToDate: Date.now(),
+            ToDate: tomorrow.toISOString(),
             SelectedRegions: regions,
             SelectedGeoHazards: [10],
         },
     }
 
     request.post(options, (err, res, body) => {
-        var fail = () => downloadObservations(url, regions, callback, retries - 1);
+        let fail = () => downloadObservations(url, regions, callback, retries - 1);
         if (err) { return fail() }
         if (res && (res.statusCode < 200 || res.statusCode > 299)) { return fail() }
         if (!('TotalMatches' in body)) { return fail() }
 
-        var count: number = body.TotalMatches
+        let count: number = body.TotalMatches
 
         fetchAll(url, regions, count, callback)
     })
@@ -251,8 +246,8 @@ function fetchAll(
     count: number,
     callback: (observations: Observation[]) => void
 ) {
-    var observations: Observation[] = [];
-    for (var offset = 0; offset < count; offset += numberOfRecords){
+    let observations: Observation[] = [];
+    for (let offset = 0; offset < count; offset += NUMBER_OF_RECORDS){
         fetchBatch(url, regions, offset, count, observations, callback)
     }
 }
@@ -272,28 +267,29 @@ function fetchBatch(
         console.error(`Failed to fetch batch of observations (offset: ${offset}), retrying (${5 - retries}/5)...`)
     }
 
-    var options = {
+    let tomorrow = new Date(Date.now() + 1000 * 3600 * 24)
+    let options = {
         uri: url,
         method: 'POST',
         json: {
             LangKey: 1,
             FromDate: new Date(2017, 8, 1).toISOString(),
-            ToDate: Date.now(),
+            ToDate: tomorrow.toISOString(),
             SelectedRegions: regions,
             SelectedGeoHazards: [10],
-            NumberOfRecords: numberOfRecords,
+            NumberOfRecords: NUMBER_OF_RECORDS,
             Offset: offset
         },
     }
 
     request.post(options, (err, res, body) => {
-        var fail = () => fetchBatch(url, regions, offset, count, rObs, callback, retries - 1);
+        let fail = () => fetchBatch(url, regions, offset, count, rObs, callback, retries - 1);
         if (err) { return fail() }
         if (res && (res.statusCode < 200 || res.statusCode > 299)) { return fail() }
         if (!Array.isArray(body)) { return fail() }
 
         rObs.push(...body);
-        if (rObs.length % 1000 < numberOfRecords) {
+        if (rObs.length % 1000 < NUMBER_OF_RECORDS) {
             console.log(`Fetched ${rObs.length} out of ${count} Regobs observations.`);
         }
         if (rObs.length >= count) {
@@ -311,4 +307,4 @@ function replacer<K, V>(key: K, value: V) {
     }
 }
 
-downloadObservations(url, regions, (obses) => serve(port, obses));
+downloadObservations(URL, REGIONS, (obses) => serve(PORT, obses));

@@ -15,13 +15,80 @@
 </head>
 
 <body>
-    <div id="charts">
-        <div id="chart-count" class="charts-chart"></div>
-        <div id="chart-acc" class="charts-chart"></div>
-        <div id="chart-simple" class="charts-chart"></div>
-        <div id="chart-simple-acc" class="charts-chart"></div>
-        <div id="chart-advanced" class="charts-chart"></div>
-        <div id="chart-schemas" class="charts-chart"></div>
+    <div id="frame">
+        <div id="controls" class="bottom-margin">
+            <div id="title">
+                <h1>Regobs Statistics</h1>
+            </div>
+            <div id="controls-inner">
+                <div class="bottom-margin">
+                    <div id="simple-adv-legend" class="legend">
+                        Observation type:
+                    </div>
+                    <div id="simple-adv-checkbox" class="checkbox-list">
+                        <label>
+                            <input type="checkbox" id="checkbox-simple" checked>
+                            Simple
+                        </label><br>
+                        <label>
+                            <input type="checkbox" id="checkbox-adv" checked>
+                            Advanced
+                        </label>
+                    </div>
+                </div>
+                <div class="bottom-margin">
+                    <div id="schemas-legend" class="legend">
+                    Property to count:
+                    </div>
+                    <div id="schemas-radio" class="checkbox-list">
+                        <label>
+                            <input type="radio" id="radio-schema-obs" checked>
+                            Registrations
+                        </label><br>
+                        <label>
+                            <input type="radio" id="radio-schema-schema">
+                            Schemas
+                        </label>
+                    </div>
+                </div>
+                <div class="bottom-margin">
+                <div class="bottom-margin">
+                    <div id="average-legend" class="legend">
+                    Rolling average:
+                    </div>
+                    <div id="average-number" class="checkbox-list">
+                        <label>
+                            <input type="number" id="avg-num" min="1" max=20 value=4>
+                            days
+                        </label><br>
+                    </div>
+                </div>
+                    <div id="regions-legend" class="legend">
+                        A-regions:
+                    </div>
+                    <div id="regions-root-a", class="checkbox-list">
+                        <input type="checkbox" id="checkbox-regions-root-a" name="a" checked>
+                    </div>
+                    <div id="regions-list-a" class="checkbox-list secondary"></div>
+                </div>
+                <div class="bottom-margin">
+                    <div id="regions-legend" class="legend">
+                        B-regions:
+                    </div>
+                    <div id="regions-root-b", class="checkbox-list">
+                        <input type="checkbox" id="checkbox-regions-root-b" name="b" checked>
+                    </div>
+                    <div id="regions-list-b" class="checkbox-list secondary"></div>
+                </div>
+            </div>
+        </div>
+        <div id="frame-inner">
+            <div id="charts">
+                <div id="chart-count" class="charts-chart"></div>
+                <div id="chart-acc" class="charts-chart"></div>
+                <div id="chart-regions" class="charts-chart"></div>
+            </div>
+        </div>
     </div>
     <script src="./static/js/main.js"></script>
 </body>

@@ -8,7 +8,6 @@ html, body {
 }
 
 h1 {
-    margin-top: 0;
     font-size: 36px;
     font-weight: 400;
 }
@@ -28,14 +27,62 @@ input, select {
     background-color: rgb(244,244,244);
 }
 
-#charts-size, #charts-height {
-    flex: 40vh;
-    min-height: 30vh;
+#avg-num {
+    width: 40px;
 }
 
-#charts-exposition {
-    flex: 50vh;
-    height: 40vh;
+#frame {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	align-items: stretch;
+	align-content: stretch;
+}
+
+#frame-inner {
+    flex: 700px;
+    width: 700px;
+    justify-content: stretch;
+}
+
+#charts {
+    margin: 0px;
+    width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+#controls {
+    margin: 20px;
+    justify-content: stretch;
+}
+
+#title {
+    top: 20px;
+    background-color: rgb(244,244,244);
+}
+
+.legend {
+    font-weight: 700;
+    display: inline;
+    vertical-align: top;
+}
+
+.checkbox-list {
+    vertical-align: top;
+    display: inline-block;
+}
+
+.secondary {
+    padding-top: 20px;
+}
+
+#charts {
+    margin: 0px;
+    width: 90%;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .charts-chart {
@@ -48,9 +95,17 @@ input, select {
     stroke: rgba(220,245,231,0.65);
 }
 
+.bottom-margin {
+    margin-bottom: 20px;
+}
+
 .highcharts-legend-item.highcharts-series-0 .highcharts-point,
 .highcharts-legend-item.highcharts-series-1 .highcharts-point,
 .highcharts-legend-item.highcharts-series-2 .highcharts-point {
     stroke-width: 1px;
     stroke: rgba(141,0,31,0.65);
+}
+
+.invalid {
+    background-color: rgb(255, 140, 140);
 }
