@@ -339,14 +339,15 @@ function populateCharts(counted: Counted, charts: Charts) {
 
 function rollingAverage(data: number[], slots: number): Point[] {
     let buffer = emptyArray_(slots, 0);
-    return [...data].map((elem) => {
+    let offset = Math.floor(slots / 2);
+    return [...data, ...emptyArray_(offset, 0)].map((elem) => {
         buffer.shift();
         buffer.push(elem);
         return {
             y: buffer.reduce((a, b) => a + b) / buffer.length,
             actualValue: elem,
         };
-    });
+    }).slice(offset);
 }
 
 function accumulateData(data: number[]): Point[] {
