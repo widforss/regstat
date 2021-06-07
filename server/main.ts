@@ -1,11 +1,10 @@
 import * as request from "request";
 import * as express from "express";
-import { stringify } from "qs";
-import { ObjectFlags } from "typescript";
 
 const PORT = 10418;
 const URL = "https://api.regobs.no/v4/Search";
-const NUMBER_OF_RECORDS = 50;
+const N_RECORDS = 50;
+const PARALLEL_DOWNLOADS = 50;
 const REGIONS_A = [
     3003, // Nordenskiöld Land
     3006, // Finnmarkskysten
@@ -215,14 +214,14 @@ function downloadObservations(
         console.error(`Failed to fetch observations count, retrying (${5 - retries}/5)...`)
     }
 
-    let tomorrow = new Date(Date.now() + 1000 * 3600 * 24)
+    let now = new Date();
     let options = {
         uri: url + "/Count",
         method: 'POST',
         json: {
             LangKey: 1,
             FromDate: new Date(2017, 8, 1).toISOString(),
-            ToDate: tomorrow.toISOString(),
+            ToDate: now.toISOString(),
             SelectedRegions: regions,
             SelectedGeoHazards: [10],
         },
@@ -236,7 +235,7 @@ function downloadObservations(
 
         let count: number = body.TotalMatches
 
-        fetchAll(url, regions, count, callback)
+        fetchAll(url, regions, count, now, callback)
     })
 }
 
@@ -244,11 +243,37 @@ function fetchAll(
     url: string,
     regions: number[],
     count: number,
+    now: Date,
     callback: (observations: Observation[]) => void
 ) {
-    let observations: Observation[] = [];
-    for (let offset = 0; offset < count; offset += NUMBER_OF_RECORDS){
-        fetchBatch(url, regions, offset, count, observations, callback)
+    let fetchNextbatch = () => {
+        if (offset > count) { return }
+        fetchBatch(
+            url,
+            regions,
+            offset,
+            now,
+            rObs,
+            (obs) => {
+                offset += N_RECORDS;
+                if (rObs.length % 1000 < N_RECORDS) {
+                    console.log(`Fetched ${rObs.length} out of ${count} Regobs observations.`);
+                }
+                if (rObs.length >= count && rObs.length - count < N_RECORDS) {
+                    console.log(`Fetched ${rObs.length} out of ${count} Regobs observations`);
+                    callback(obs);
+                } else {
+                    fetchNextbatch();
+                }
+            },
+        )
+    }
+
+    let rObs: Observation[] = [];
+    let offset = -N_RECORDS;
+    for (let parallel = 0; parallel < PARALLEL_DOWNLOADS; parallel += 1){
+        offset += N_RECORDS;
+        fetchNextbatch();
     }
 }
 
@@ -256,7 +281,7 @@ function fetchBatch(
     url: string,
     regions: number[],
     offset: number,
-    count: number,
+    now: Date,
     rObs: Observation[],
     callback: (observations: Observation[]) => void,
     retries: number = 5
@@ -267,35 +292,28 @@ function fetchBatch(
         console.error(`Failed to fetch batch of observations (offset: ${offset}), retrying (${5 - retries}/5)...`)
     }
 
-    let tomorrow = new Date(Date.now() + 1000 * 3600 * 24)
     let options = {
         uri: url,
         method: 'POST',
         json: {
             LangKey: 1,
             FromDate: new Date(2017, 8, 1).toISOString(),
-            ToDate: tomorrow.toISOString(),
+            ToDate: now.toISOString(),
             SelectedRegions: regions,
             SelectedGeoHazards: [10],
-            NumberOfRecords: NUMBER_OF_RECORDS,
+            NumberOfRecords: N_RECORDS,
             Offset: offset
         },
     }
 
     request.post(options, (err, res, body) => {
-        let fail = () => fetchBatch(url, regions, offset, count, rObs, callback, retries - 1);
+        let fail = () => fetchBatch(url, regions, offset, now, rObs, callback, retries - 1);
         if (err) { return fail() }
         if (res && (res.statusCode < 200 || res.statusCode > 299)) { return fail() }
         if (!Array.isArray(body)) { return fail() }
 
         rObs.push(...body);
-        if (rObs.length % 1000 < NUMBER_OF_RECORDS) {
-            console.log(`Fetched ${rObs.length} out of ${count} Regobs observations.`);
-        }
-        if (rObs.length >= count) {
-            console.log(`Fetched ${rObs.length} out of ${count} Regobs observations`);
-            callback(rObs)
-        }
+        callback(rObs)
     })
 }
 
