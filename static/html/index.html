@@ -21,18 +21,42 @@
                 <h1>Regobs Statistics</h1>
             </div>
             <div id="controls-inner">
-                <div class="bottom-margin">
+                <!---<div class="bottom-margin">
                     <div id="simple-adv-legend" class="legend">
                         Observation type:
                     </div>
                     <div id="simple-adv-checkbox" class="checkbox-list">
                         <label>
-                            <input type="checkbox" id="checkbox-simple" checked>
+                            <input type="radio" id="filter-all" name="filter" checked>
+                            All
+                        </label><br>
+                        <label>
+                            <input type="radio" id="filter-simple" name="filter">
                             Simple
                         </label><br>
                         <label>
-                            <input type="checkbox" id="checkbox-adv" checked>
+                            <input type="radio" id="filter-adv" name="filter">
                             Advanced
+                        </label>
+                    </div>
+                </div>--->
+                <div id="filter-radio" class="bottom-margin">
+                    <div class="legend">
+                    Filter:
+                    </div>
+                </div>
+                <div class="bottom-margin">
+                    <div id="year-legend" class="legend">
+                    Hydrological or calendar year:
+                    </div>
+                    <div id="hydro-radio" class="checkbox-list">
+                        <label>
+                            <input type="radio" id="radio-hydro-hydro" name="hydro" checked>
+                            Hydrological
+                        </label><br>
+                        <label>
+                            <input type="radio" id="radio-hydro-cal" name="hydro">
+                            Calendar
                         </label>
                     </div>
                 </div>
@@ -42,43 +66,45 @@
                     </div>
                     <div id="schemas-radio" class="checkbox-list">
                         <label>
-                            <input type="radio" id="radio-schema-obs" checked>
+                            <input type="radio" id="radio-schema-obs" name="schema" checked>
                             Registrations
                         </label><br>
                         <label>
-                            <input type="radio" id="radio-schema-schema">
+                            <input type="radio" id="radio-schema-schema" name="schema">
                             Schemas
                         </label>
                     </div>
                 </div>
-                <div class="bottom-margin">
                 <div class="bottom-margin">
                     <div id="average-legend" class="legend">
                     Rolling average:
                     </div>
                     <div id="average-number" class="checkbox-list">
                         <label>
-                            <input type="number" id="avg-num" min="1" max=20 value=4>
+                            <input type="number" id="avg-num" min="1" max=20 value=14>
                             days
                         </label><br>
                     </div>
                 </div>
-                    <div id="regions-legend" class="legend">
-                        A-regions:
+                <div id="regionboxes-snow" class="bottom-margin hidden">
+                    <div class="legend">
+                    Regions:
                     </div>
-                    <div id="regions-root-a", class="checkbox-list">
-                        <input type="checkbox" id="checkbox-regions-root-a" name="a" checked>
-                    </div>
-                    <div id="regions-list-a" class="checkbox-list secondary"></div>
                 </div>
-                <div class="bottom-margin">
-                    <div id="regions-legend" class="legend">
-                        B-regions:
+                <div id="regionboxes-land" class="bottom-margin hidden">
+                    <div class="legend">
+                    Regions:
                     </div>
-                    <div id="regions-root-b", class="checkbox-list">
-                        <input type="checkbox" id="checkbox-regions-root-b" name="b" checked>
+                </div>
+                <div id="regionboxes-water" class="bottom-margin hidden">
+                    <div class="legend">
+                    Regions:
                     </div>
-                    <div id="regions-list-b" class="checkbox-list secondary"></div>
+                </div>
+                <div id="regionboxes-ice" class="bottom-margin hidden">
+                    <div class="legend">
+                    Regions:
+                    </div>
                 </div>
             </div>
         </div>
@@ -86,7 +112,7 @@
             <div id="charts">
                 <div id="chart-count" class="charts-chart"></div>
                 <div id="chart-acc" class="charts-chart"></div>
-                <div id="chart-regions" class="charts-chart"></div>
+                <div id="chart-regions" class="charts-chart hidden"></div>
             </div>
         </div>
     </div>

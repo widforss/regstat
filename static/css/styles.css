@@ -109,3 +109,7 @@ input, select {
 .invalid {
     background-color: rgb(255, 140, 140);
 }
+
+.hidden {
+    display: none;
+}
