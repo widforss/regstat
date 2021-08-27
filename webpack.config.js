@@ -50,5 +50,25 @@ const clientConfig = {
   },
 };
 
+const weatherConfig = {
+  entry: './client/main_weather.ts',
+  module: {
+    rules: [
+      {
+        test: /\.tsx?$/,
+        use: 'ts-loader',
+        exclude: /node_modules/,
+      },
+    ],
+  },
+  resolve: {
+    extensions: [ '.tsx', '.ts', '.js' ],
+  },
+  output: {
+    filename: 'static/js/main_weather.js',
+    path: path.resolve(__dirname),
+  },
+};
 
-module.exports = [serverConfig, clientConfig];
+
+module.exports = [serverConfig, clientConfig, weatherConfig];

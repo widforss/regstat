@@ -1,9 +1,12 @@
 import * as request from "request";
-import * as express from "express";
+import e, * as express from "express";
+import * as fs from "fs";
 
 const PORT = 10418;
-const URL = "https://api.regobs.no/v4/Search";
-const N_RECORDS = 50;
+const URL_REGOBS = "https://api.regobs.no/v4/Search";
+const URL_VARSOM = "https://api01.nve.no/hydrology/forecast/avalanche/v4.0.2/api/AvalancheWarningByRegion/Detail"
+const REGOBS_N_RECORDS = 50;
+const VARSOM_N_RECORDS = 30;
 const PARALLEL_DOWNLOADS = 50;
 
 interface Observation {
@@ -20,15 +23,81 @@ interface Observation {
     }[],
 }
 
+interface AvalancheWarning {
+    DangerLevelName: string,
+    DangerLevel: string,
+    RegionName: string,
+    RegionId: string,
+    RegionTypeName: string,
+    ValidFrom: string,
+    ValidTo: string,
+    AvalancheProblems: AvalancheProblem[],
+    MountainWeather: MountainWeather,
+}
+
+interface AvalancheProblem {
+    AvalancheProblemTypeId: number,
+    AvalancheProblemTypeName: string,
+}
+
+interface MountainWeather {
+    MeasurementTypes: WeatherType[]
+}
+
+interface WeatherType {
+    Id: number,
+    Name: string,
+    MeasurementSubTypes: WeatherSubType[]
+}
+
+interface WeatherSubType {
+        Id: number,
+        Name: string,
+        Value: string,
+}
+
 type Year = number;
 type Month = number;
 type Day = number;
 type Region = string;
 type RegionId = number;
 type Tid = number;
+type DangerLevel = number;
+type Problem = number;
 type Counted = Map<Region, Map<Year, Map<Month, Map<Day, [Tid, Tid[]][]>>>>;
+type CountedWeather = Map<
+    Region, Map<
+        Year, Map<
+            Month, Map<
+                Day, [DangerLevel, Problem[], Map<Tid, Map<Tid, string | number>>]
+            >
+        >
+    >
+>;
 
-let REGIONS: {[region: number]: Region} = {
+const START_DATE = new Date(2017, 8, 1);
+const WIND_SPEEDS: {[name: string]: number} = {
+    'Calm/light breeze': 0,
+    'Breeze': 6,
+    'Fresh breeze': 9,
+    'Strong breeze': 12,
+    'Moderate gale': 16,
+    'Gale': 19,
+    'Strong gale': 23,
+    'Storm': 26,
+    'Hurricane force': 35,
+};
+const WIND_DIRS: {[name: string]: number} = {
+    'N': 0,
+    'NE': 1,
+    'E': 2,
+    'SE': 3,
+    'S': 4,
+    'SW': 5,
+    'W': 6,
+    'NW': 7,
+};
+const REGIONS: {[region: number]: Region} = {
   '0':   "No region",//'',
   '119': "No region",//'',
   '200': "No region",//'Fylke ikke gitt',
@@ -85,7 +154,9 @@ let REGIONS: {[region: number]: Region} = {
   '2007': "Lysakerelva",//'LYSAKERELVA',
   '2008': "Sandvikelva",//'SANDVIKSELVA',
   '2009': "Årosvassdraget",//'ÅROSVASSDRAGET',
+  '2210': "Storelva/Kvænangen nord",
   '2012': "Drammensvassdraget",//'DRAMMENSVASSDRAGET',
+  '2213': "Repparfjordvassdraget",
   '2015': "Numedalslågen og Siljansvassdraget",//'NUMEDALSLÅGEN OG SILJANVASSDRAGET',
   '2016': "Skiensvassdraget",//'SKIENSVASSDRAGET',
   '2018': "Vegårsvassdraget",//'VEGÅRSVASSDRAGET OG GJERSTADVASSDRAGET',
@@ -166,10 +237,12 @@ let REGIONS: {[region: number]: Region} = {
   '2195': "Senja vest",//'SENJA VEST',
   '2196': "Målselvvassdraget",//'MÅLSELVVASSDRAGET',
   '2197': "Kvaløya og Tromsøya",//'KVALØYA OG TROMSØYA',
+  '2198': "Nordkjoselva",
   '2199': "Tromsøysundet og Grøtsundet øst, Reinøya og Karlsø",//'TROMSØYSUNDET OG GRØTSUNDET ØST, REINØYA OG KARLSØ',
   '2200': "Ringvassøya",//'RINGVASSØYA',
   '2203': "Lakselva",//'LAKSELVA',
   '2204': "Signaldalselva",//'SIGNALDALSELVA',
+  '2206': "Kåfjordvassdraget",
   '2208': "Reisavassdraget",//'REISAVASSDRAGET',
   '2209': "Kvænangsvassdraget",//'KVÆNANGSVASSDRAGET',
   '2212': "Altavassdraget",//'ALTAVASSDRAGET',
@@ -227,17 +300,27 @@ let REGIONS: {[region: number]: Region} = {
   '3044': 'Akershus',
   '3045': 'Oslo',
   '3046': 'Østfold'
-}
+};
 
 
-function serve(port: number, observations: Observation[]) {
+function serve(
+    port: number,
+    observations: Observation[],
+    warnings: AvalancheWarning[],
+) {
     let counted = count(observations);
     let countedObsesJson = JSON.stringify(counted, replacer);
+
+    let weather = countWeather(warnings);
+    let countedWeatherJson = JSON.stringify(weather, replacer);
 
     const app = express();
     app.use('/static', express.static(`${__dirname}/static`));
     app.get('/', function(req, res) {
         res.sendFile(`${__dirname}/static/html/index.html`);
+    });
+    app.get('/weather', function(req, res) {
+        res.sendFile(`${__dirname}/static/html/weather.html`);
     });
 
     // All observations counted
@@ -246,11 +329,16 @@ function serve(port: number, observations: Observation[]) {
         res.send(countedObsesJson);
     });
 
+    // All weather counted
+    app.get('/api/weather', (_: void, res: any) => {
+        res.set('Content-Type', 'application/json');
+        res.send(countedWeatherJson);
+    });
+
     app.listen(port, '0.0.0.0', () => {console.log(`Web server started on port ${port}.`)});
 }
 
 function count(observations: Observation[]): Counted {
-    let regionIds: {[name: string]: number} = {}
     let counted: Counted = new Map();
     for (let obs of observations) {
         let date = getDate(obs);
@@ -258,10 +346,6 @@ function count(observations: Observation[]): Counted {
         let month = date.getMonth() + 1;
         let day = date.getDate();
         let region = getRegion(obs);
-
-        if (!(region in regionIds)) {
-            regionIds[region] = getRegionId(obs);
-        }
 
         if (!counted.has(region)) {
             counted.set(region, new Map());
@@ -276,8 +360,8 @@ function count(observations: Observation[]): Counted {
             counted.get(region).get(year).get(month).set(day, []);
         }
 
-        let prev = counted.get(region).get(year).get(month).get(day)
-        let tids = obs.Summaries.map((summary) => summary.RegistrationTID)
+        let prev = counted.get(region).get(year).get(month).get(day);
+        let tids = obs.Summaries.map((summary) => summary.RegistrationTID);
         prev.push([obs.GeoHazardTID, tids]);
     }
 
@@ -293,7 +377,7 @@ function count(observations: Observation[]): Counted {
                 dates = new Map([...dates].sort(numSort).map(([date, obses]) => {
                     obses = obses
                         .map(([gTid, rTids]) => [gTid, rTids.sort()])
-                        .sort(([gTidA, rTidsA], [gTidB, rTidsB]) => {
+                        .sort(([gTidA, rTidsA], [_, rTidsB]) => {
                             let a = rTidsA as number[];
                             let b = rTidsB as number[];
                             if (a.length == b.length && a.length) {
@@ -302,11 +386,97 @@ function count(observations: Observation[]): Counted {
                             return a.length - b.length;
                         }) as [number, number[]][];
                     return [date, obses]
-                }))
+                }));
                 return [month, dates]
-            }))
+            }));
             return [year, months]
-        }))
+        }));
+        return [region, years]
+    }));
+    return counted;
+}
+
+function countWeather(warnings: AvalancheWarning[]): CountedWeather {
+    let counted: CountedWeather = new Map();
+    for (let warning of warnings) {
+        if (!warning.MountainWeather) { continue }
+
+        let date = getDateVarsom(warning);
+        let year = date.getFullYear();
+        let month = date.getMonth() + 1;
+        let day = date.getDate();
+        let region = getRegionVarsom(warning);
+        let dangerLevel = parseInt(warning.DangerLevel);
+
+        let tids = new Map([...warning.MountainWeather.MeasurementTypes].map((type) => [
+            type.Id,
+            new Map([...type.MeasurementSubTypes]
+                .filter((sub) => sub.Value !== null)
+                .map((sub) => {
+                    let isWindSpeed = (type: WeatherType, sub: WeatherSubType) =>
+                        (type.Id == 20 || type.Id == 30) && sub.Id == 20;
+                    let isWindDir = (type: WeatherType, sub: WeatherSubType) =>
+                        (type.Id == 20 || type.Id == 30) && sub.Id == 50;
+
+                    let val: number | string;
+                    if (isWindSpeed(type, sub)) {
+                        if (!(sub.Value in WIND_SPEEDS)) {
+                            console.error(`Unknown wind speed: ${sub.Value}`)
+                        }
+                        val = WIND_SPEEDS[sub.Value];
+                    } else if (isWindDir(type, sub)) {
+                        if (!(sub.Value in WIND_DIRS)) {
+                            console.error(`Unknown wind direction: ${sub.Value}`)
+                        }
+                        val = WIND_DIRS[sub.Value];
+                    } else if (isNaN(Number(sub.Value))) {
+                        val = sub.Value;
+                    } else {
+                        val = Number(sub.Value);
+                    }
+
+                    return [sub.Id, val]
+                })
+            )
+        ]).filter(([_, subs]) => (subs as any).size) as [number, Map<number, string>][]);
+
+        let problems = warning.AvalancheProblems
+            .map((problem) => problem.AvalancheProblemTypeId)
+            .filter(Boolean);
+
+        if (tids.size) {
+            if (!counted.has(region)) {
+                counted.set(region, new Map());
+            }
+            if (!counted.get(region).has(year)) {
+                counted.get(region).set(year, new Map());
+            }
+            if (!counted.get(region).get(year).has(month)) {
+                counted.get(region).get(year).set(month, new Map());
+            }
+            counted.get(region).get(year).get(month).set(day, [dangerLevel, problems, tids]);
+        }
+    }
+
+
+    // Sort the Maps
+    let numSort = (a: {[n: number]: any}, b: {[n: number]: any}) => a[0] - b[0];
+    counted = new Map([...counted].sort((a, b) =>
+        // Ordering definition for regions
+        Object.values(REGIONS).indexOf(a[0]) - Object.values(REGIONS).indexOf(b[0])
+    ).map(([region, years]) => {
+        years = new Map([...years].sort(numSort).map(([year, months]) => {
+            months = new Map([...months].sort(numSort).map(([month, dates]) => {
+                dates = new Map([...dates].sort(numSort).map(([date, [dl, problems, tids]]) => {
+                    tids = new Map([...tids].sort().map(([tid, subtids]) =>
+                        [tid, new Map([...subtids].sort())]
+                    ));
+                    return [date, [dl, problems, tids]]
+                }));
+                return [month, dates]
+            }));
+            return [year, months]
+        }));
         return [region, years]
     }));
     return counted;
@@ -316,17 +486,38 @@ function getDate(observation: Observation): Date {
     return new Date(observation.DtObsTime);
 }
 
-function getRegion(observation: Observation): Region {
-    let id = observation.ObsLocation.ForecastRegionTID;
-    return REGIONS[id];
+function getDateVarsom(warning: AvalancheWarning): Date {
+    return new Date(warning.ValidFrom.slice(0, 10));
 }
 
-function getRegionId(observation: Observation): RegionId {
-    return observation.ObsLocation.ForecastRegionTID;
+function getDateStr(date: Date): string {
+    let year = date.getFullYear();
+    let month = (date.getMonth() + 1).toFixed(0).padStart(2, "0");
+    let day = date.getDate().toFixed(0).padStart(2, "0");
+    return `${year}-${month}-${day}`
+}
+
+function getRegion(observation: Observation): Region {
+    let id = observation.ObsLocation.ForecastRegionTID;
+    let name = REGIONS[id];
+    if (!name) {
+        name = observation.ObsLocation.ForecastRegionName;
+        console.error(`Unknown region id ${id}: ${name}`);
+    }
+    return name;
+}
+
+function getRegionVarsom(warning: AvalancheWarning): Region {
+    let id: any = warning.RegionId;
+    let name = REGIONS[id];
+    if (!name) {
+        name = warning.RegionName;
+        console.error(`Unknown region id ${id}: ${name}`);
+    }
+    return name;
 }
 
 function downloadObservations(
-    url: string,
     callback: (observations: Observation[]) => void,
     retries: number = 10
 ) {
@@ -338,68 +529,64 @@ function downloadObservations(
 
     let now = new Date();
     let options = {
-        uri: url + "/Count",
+        uri: URL_REGOBS + "/Count",
         method: 'POST',
         json: {
             LangKey: 1,
-            FromDtObsTime: new Date(2017, 8, 1).toISOString(),
+            FromDtObsTime: START_DATE.toISOString(),
             ToDtObsTime: now.toISOString(),
         },
-    }
+    };
 
     request.post(options, (err, res, body) => {
-        let fail = () => downloadObservations(url, callback, retries - 1);
+        let fail = () => downloadObservations(callback, retries - 1);
         if (err) { return fail() }
         if (res && (res.statusCode < 200 || res.statusCode > 299)) { return fail() }
         if (!('TotalMatches' in body)) { return fail() }
 
-        let count: number = body.TotalMatches
+        let count: number = body.TotalMatches;
 
-        fetchAll(url, count, now, callback)
+        fetchAllObs(count, now, callback)
     })
 }
 
-function fetchAll(
-    url: string,
+function fetchAllObs(
     count: number,
     now: Date,
     callback: (observations: Observation[]) => void
 ) {
     let fetchNextbatch = () => {
         if (offset > count) { return }
-        fetchBatch(
-            url,
+        fetchBatchObs(
             offset,
             now,
-            rObs,
-            (obs) => {
-                offset += N_RECORDS;
-                if (rObs.length % 1000 < N_RECORDS) {
+            (batch) => {
+                rObs.push(...batch);
+                offset += REGOBS_N_RECORDS;
+                if (rObs.length % 1000 < REGOBS_N_RECORDS) {
                     console.log(`Fetched ${rObs.length} out of ${count} Regobs observations.`);
                 }
-                if (rObs.length >= count && rObs.length - count < N_RECORDS) {
+                if (rObs.length >= count && rObs.length - count < REGOBS_N_RECORDS) {
                     console.log(`Fetched ${rObs.length} out of ${count} Regobs observations`);
-                    callback(obs);
+                    callback(rObs);
                 } else {
                     fetchNextbatch();
                 }
             },
         )
-    }
+    };
 
     let rObs: Observation[] = [];
-    let offset = -N_RECORDS;
+    let offset = -REGOBS_N_RECORDS;
     for (let parallel = 0; parallel < PARALLEL_DOWNLOADS; parallel += 1){
-        offset += N_RECORDS;
+        offset += REGOBS_N_RECORDS;
         fetchNextbatch();
     }
 }
 
-function fetchBatch(
-    url: string,
+function fetchBatchObs(
     offset: number,
     now: Date,
-    rObs: Observation[],
     callback: (observations: Observation[]) => void,
     retries: number = 10
 ) {
@@ -410,26 +597,133 @@ function fetchBatch(
     }
 
     let options = {
-        uri: url,
+        uri: URL_REGOBS,
         method: 'POST',
         json: {
             LangKey: 1,
-            FromDtObsTime: new Date(2017, 8, 1).toISOString(),
+            FromDtObsTime: START_DATE.toISOString(),
             ToDtObsTime: now.toISOString(),
-            NumberOfRecords: N_RECORDS,
+            NumberOfRecords: REGOBS_N_RECORDS,
             Offset: offset
         },
-    }
+    };
 
     request.post(options, (err, res, body) => {
-        let fail = () => fetchBatch(url, offset, now, rObs, callback, retries - 1);
+        let fail = () => fetchBatchObs(offset, now, callback, retries - 1);
         if (err) { return fail() }
         if (res && (res.statusCode < 200 || res.statusCode > 299)) { return fail() }
         if (!Array.isArray(body)) { return fail() }
 
-        rObs.push(...body);
-        callback(rObs)
+        callback(body)
     })
+}
+
+function downloadVarsom(
+    callback: (warnings: AvalancheWarning[]) => void,
+) {
+    let fetchNextbatch = () => {
+        sync++;
+        fetchBatchVarsom(
+            new Date(fromDate),
+            now,
+            (batch) => {
+                sync--;
+                warnings.push(...batch);
+
+                let lastForecast = new Date(new Date(now).setDate(now.getDate() + 2));
+                if (batch.length) {
+                    console.log(`Fetched ${warnings.length} avalanche warnings.`);
+                }
+
+                if (fromDate >= lastForecast && sync == 0) {
+                    fs.writeFileSync("cache/varsom.json", JSON.stringify(warnings, null, 2));
+                    callback(warnings);
+                } else if (fromDate < lastForecast) {
+                    fromDate.setDate(fromDate.getDate() + VARSOM_N_RECORDS);
+                    fetchNextbatch();
+                }
+            },
+        )
+    };
+
+    let now = new Date();
+    let warnings: AvalancheWarning[];
+    let fromDate = new Date(START_DATE.getTime());
+    let sync = 0;
+    let buf;
+    try {
+        buf = fs.readFileSync("cache/varsom.json");
+        console.log("Reading Varsom cache file.");
+        warnings = JSON.parse(buf.toString())
+            .filter((warning: AvalancheWarning) => {
+                let date = getDateVarsom(warning);
+                let tooNew = new Date(new Date().setDate(new Date().getDate() - 30));
+                return date < tooNew;
+            });
+        warnings = warnings.sort((a, b) =>
+            getDateVarsom(a).getTime() - getDateVarsom(b).getTime()
+        );
+        let lastWarning = warnings[warnings.length - 1];
+        let fromDateStr = getDateVarsom(lastWarning);
+        fromDate = new Date(fromDateStr);
+        fromDate.setDate(fromDate.getDate() + 1);
+        console.log(`Using ${warnings.length} cached avalanche warnings.`)
+    } catch {
+        console.error("Failed to read Varsom cache file.");
+        warnings = [];
+    }
+    
+    fetchNextbatch();
+}
+
+function fetchBatchVarsom(
+    fromDate: Date,
+    now: Date,
+    callback: (batch: AvalancheWarning[]) => void,
+    selectedRegion: number = null,
+    retries: number = 10
+) {
+    let toDate = new Date(new Date(fromDate).setDate(fromDate.getDate() + VARSOM_N_RECORDS - 1));
+    let fromStr = getDateStr(fromDate);
+    let toStr = getDateStr(toDate);
+    let failStr = "Failed to fetch batch of avalanche warnings";
+
+    let batch: AvalancheWarning[] = [];
+    let sync = 0;
+    for (let region = 3000; region < 3050; region++) {
+        if (selectedRegion && selectedRegion != region) { continue }
+        if (!REGIONS.hasOwnProperty(region.toFixed(0))) { continue }
+        if (retries < 0) {
+            throw new Error(`${failStr} (from: ${fromStr}, to: ${toStr})!`);
+        } else if (retries < 10) {
+            console.error(`${failStr} (from: ${fromStr}, to: ${toStr}), retrying (${10 - retries}/10)...`)
+        }
+
+        let uri = `${URL_VARSOM}/${region}/2/${fromStr}/${toStr}`;
+        sync++;
+        request.get({uri}, (err, res, body) => {
+            sync--;
+            let fail = () => fetchBatchVarsom(fromDate, now, callback, region, retries - 1);
+            if (err) { return fail() }
+            if (res && (res.statusCode < 200 || res.statusCode > 299)) { return fail() }
+
+            let json;
+            try {
+                json = JSON.parse(body as any as string);
+            } catch {
+                return fail();
+            }
+            if (!Array.isArray(batch)) { return fail() }
+
+            json = json.filter((warning: AvalancheWarning) => {
+                let dl = Number(warning.DangerLevel);
+                return dl && dl < 5;
+            });
+            batch.push(...json);
+
+            if (sync == 0) { callback(batch) }
+        })
+    }
 }
 
 function replacer<K, V>(key: K, value: V) {
@@ -440,4 +734,18 @@ function replacer<K, V>(key: K, value: V) {
     }
 }
 
-downloadObservations(URL, (obses) => serve(PORT, obses));
+let observations_: Observation[] = null;
+let warnings_: AvalancheWarning[] = null;
+let runServer = () => {
+    if (observations_ && warnings_) {
+        serve(PORT, observations_, warnings_);
+    }
+};
+downloadObservations((obses) => {
+    observations_ = obses;
+    runServer();
+});
+downloadVarsom((avalancheWarnings) => {
+    warnings_ = avalancheWarnings;
+    runServer();
+});

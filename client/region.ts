@@ -152,7 +152,6 @@ const REGIONS_WATER = [
     "Gratangen og Lavangen",
     "Salangselva",
     "Lakselva og Lyselvvassdraget",
-    "Senja vest",
     "Målselvvassdraget",
     "Kvaløya og Tromsøya",
     "Tromsøysundet og Grøtsundet øst",
