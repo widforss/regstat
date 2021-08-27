@@ -1,4 +1,5 @@
 import * as Highcharts from 'highcharts';
+import { COLORS } from './color';
 import { getOptions } from './option';
 import { Region } from './region';
 
@@ -10,9 +11,6 @@ interface Charts {
 
 const [START, STOP] = [new Date("1970-09-01"), new Date("1971-09-01")];
 const [START_CAL, STOP_CAL] = [new Date("1971-01-01"), new Date("1972-01-01")];
-const COLORS = {
-    BACKGROUND: 'rgb(244,244,244)',
-};
 
 const FILTER: {[keep: string]: (obses: [number, number[]][]) => [number, number[]][]} = {
     all: (obses) => obses,
@@ -72,8 +70,9 @@ const FILTER: {[keep: string]: (obses: [number, number[]][]) => [number, number[
 };
 
 interface Point {
+    x?: number,
     y: number,
-    actualValue: number,
+    actualValue: number | string,
 }
 
 type Season = string;
@@ -276,11 +275,13 @@ function makeDataRegion(
 function makeSeries(
     title: string,
     data: Point[]|number[],
-    type: "line" | "column",    
-): Highcharts.SeriesLineOptions | Highcharts.SeriesColumnOptions {
+    type: "line" | "column" | "spline",
+    id: string = null,
+): Highcharts.SeriesLineOptions | Highcharts.SeriesColumnOptions | Highcharts.SeriesSplineOptions {
+    id = id ? id : title.slice(title.length - 2);
     return {
         name: title,
-        id: title.slice(title.length - 2),
+        id,
         data,
         type,
     };
@@ -315,7 +316,7 @@ function initBarChart(
 }
 
 function chartTemplate(title: string, type: string, yText: string, labels: string[]) {
-    return {
+    let template = {
         chart: {
             type: type,
             backgroundColor: COLORS.BACKGROUND,
@@ -330,7 +331,6 @@ function chartTemplate(title: string, type: string, yText: string, labels: strin
             }
         },
         xAxis: {
-            categories: labels,
             labels: {
                 style: {
                     fontSize: '14px',
@@ -338,7 +338,7 @@ function chartTemplate(title: string, type: string, yText: string, labels: strin
             }
         },
         yAxis: {
-            allowDecimals: false,
+            allowDecimals: true,
             title: {
                 text: yText,
                 style: {
@@ -366,7 +366,11 @@ function chartTemplate(title: string, type: string, yText: string, labels: strin
             }
         },
         series: [] as any,
+    } as Highcharts.Options;
+    if (labels !== null) {
+        (<Highcharts.XAxisOptions> template.xAxis).categories = labels;
     }
+    return template;
 }
 
 function rollingAverage(data: number[], slots: number): Point[] {
@@ -443,4 +447,4 @@ function intersection(a: number[], b: number[]): number[] {
     return a.filter((a1) => b.includes(a1))
 }
 
-export {populateCharts, showCharts, Charts, Counted};
+export {populateCharts, showCharts, chartTemplate, makeSeries, intersection, emptyArray_, Charts, Counted, Point};

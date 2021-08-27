@@ -53,6 +53,87 @@ input, select {
     margin-right: auto;
 }
 
+#weather-charts {
+    display: flex;
+    float: left;
+}
+
+.weather-charts-container {
+    display: flex;
+    flex-direction: column;
+    width: 690px;
+    align-items: center;
+    margin: 20px;
+    margin-right: 0;
+    border-width: 1px;
+    border-radius: 20px;
+    border-color: black;
+    border-style: solid;
+}
+
+.weather-charts-container :not(:last-child) {
+    border-bottom: black;
+    border-bottom-style: solid;
+    border-width: 1px;
+}
+
+.weather-charts-container :not(:last-child) * {
+    border-bottom-style: none;
+}
+
+.weather-chart {
+    width: 650px;
+}
+
+.weather-options {
+    align-self: stretch;
+    margin: 20px;
+    border-radius: 10px;
+    border-color: black;
+    border-width: 1px;
+    border-style: solid;
+    padding: 20px;
+    padding-bottom: 0;
+    position: sticky;
+    top: 40px;
+    z-index: 10;
+    background-color: rgb(244,244,244);
+}
+
+.weather-options > div {
+    margin-bottom: 20px;
+}
+
+.plus {
+    cursor: pointer;
+    width: 30px;
+    text-align: center;
+    margin: 20px;
+    border-width: 1px;
+    border-radius: 20px;
+    border-color: black;
+    border-style: solid;
+    align-self: start;
+    position: sticky;
+    top: 40px;
+    padding-top: -30px;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.plus > span {
+    position: relative;
+    top: -1px;
+}
+
+#close-cross {
+    position: absolute;
+    right: 10px;
+    top: 3px;
+    font-size: 24px;
+    font-weight: 800;
+}
+
 #controls {
     margin: 20px;
     justify-content: stretch;

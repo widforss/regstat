@@ -1,8 +1,8 @@
 import {Counted} from "./chart"
 
-function fetchData(
+function fetchData<T>(
     url: string,
-    callback: (counted: Counted) => void,
+    callback: (counted: T) => void,
     retries: number = 5
 ) {
     let fail = () => { return fetchData(url, callback, retries - 1) }
