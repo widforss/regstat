@@ -9,6 +9,7 @@ interface Options {
     region: HTMLSelectElement,
     param: HTMLSelectElement,
     date: HTMLInputElement,
+    normalize: HTMLInputElement,
 }
 type Param = "wind" | "temp (min)" | "temp (max)" | "downfall (mean)" | "downfall (max)"
 
@@ -110,6 +111,7 @@ function initOptions(
     let dateDiv = document.createElement("div");
     let paramDiv = document.createElement("div");
     let regionDiv = document.createElement("div");
+    let normalizeDiv = document.createElement("div");
     optionsDiv.classList.add("bottom-margin");
     optionsDiv.classList.add("weather-options");
     container.appendChild(optionsDiv);
@@ -163,10 +165,19 @@ function initOptions(
     }
     optionsDiv.appendChild(regionDiv);
 
+    let normalizeCheckbox = document.createElement("input");
+    let normalizeTitle = document.createElement("span");
+    normalizeTitle.innerText = "Normalize: "
+    normalizeCheckbox.type = "checkbox";
+    normalizeDiv.appendChild(normalizeTitle);
+    normalizeDiv.appendChild(normalizeCheckbox);
+    optionsDiv.appendChild(normalizeDiv);
+
     return {
         region: regionSelector,
         param: paramSelector,
         date: dateSelector,
+        normalize: normalizeCheckbox,
     }
 }
 
@@ -174,6 +185,7 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
     let region = options.region.value;
     let date = new Date(options.date.value);
     let param = options.param.value as Param;
+    let normalizeOption = options.normalize.checked;
     let labels = null;
 
     let data;
@@ -214,7 +226,8 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
         let series: Highcharts.SeriesOptionsType[];
         if (problem in data) {
             series = Object.entries(data[problem]).map(([dl, data]) => {
-                let points = param == "wind" ? normalize(data) : reduceY(data);
+                let points;
+                points = param == "wind" ? normalize(data, normalizeOption) : reduceY(data, normalizeOption);
                 let series = makeSeries(dl, points, "spline", dl);
                 series.color = COLORS[`DL${dl}`];
                 series.legendIndex = Number(dl);
@@ -228,7 +241,8 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
         if (isDayVal) {
             charts[problem].update({
                 series: [daySeries, ...series],
-                xAxis: {categories: param == "wind" ? labels : null}
+                xAxis: {categories: param == "wind" ? labels : null},
+                yAxis: {max: normalizeOption ? 1 : null, min: 0}
             }, true, true);
         } else {
             charts[problem].update({
@@ -236,6 +250,7 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
                 xAxis: {
                     categories: param == "wind" ? labels : null,
                 },
+                yAxis: {max: normalizeOption ? 1 : null, min: 0}
             }, true, true);
         }
     }
@@ -364,17 +379,22 @@ function initSplineChart(
     );
 }
 
-function normalize(data: number[]): Point[] {
+function normalize(data: number[], normalize: boolean): Point[] {
     let sum: number = data.reduce((acc, datum) => acc + datum);
     let normedData: Point[] = [];
     data.forEach((datum, i) => {
-        let normed = sum ? datum / sum : 0;
+        let normed;
+        if (normalize) {
+            normed = sum ? datum / sum : 0;
+        } else {
+            normed = datum;
+        }
         normedData.push({y: normed, x: i, actualValue: datum});
     });
     return normedData;
 }
 
-function reduceY(data: number[]): Point[] {
+function reduceY(data: number[], normalize: boolean): Point[] {
     let d: {[datum: number]: number} = {};
     data.forEach((datum) => {
         if (!(datum in d)) {
@@ -386,7 +406,12 @@ function reduceY(data: number[]): Point[] {
     let sum: number = data.length;
     let normedData: Point[] = [];
     Object.entries(d).forEach(([datum, amount]) => {
-        let normed = sum ? amount / sum : 0;
+        let normed;
+        if (normalize) {
+            normed = sum ? amount /sum : 0;
+        } else {
+            normed = amount;
+        }
         if (!isNaN(Number(datum))) {
             normedData.push({x: Number(datum), y: normed, actualValue: amount});
         }
