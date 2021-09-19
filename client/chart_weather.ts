@@ -90,7 +90,12 @@ function addCharts(counted: Counted) {
         chartDiv.classList.add("bottom-margin");
 
         let chart = initSplineChart(chartDiv, problem, '', [...Object.values(WIND_SPEEDS)]);
-        chart.update({yAxis: {max: 1, min: 0}});
+        chart.update({
+            yAxis: [{max: 1, min: 0}, {max: 1, min: 0, visible: false}],
+            chart: {
+                alignTicks: false,
+            }
+        });
         charts[problem] = chart;
         container.appendChild(chartDiv);
     }
@@ -192,13 +197,13 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
     if (param == "wind") {
         labels = Object.values(WIND_SPEEDS);
         data = makeDataCat(counted, labels, param, region);
-        Object.values(charts).forEach((chart) => chart.update({xAxis: {max: null, min: null}}));
+        //Object.values(charts).forEach((chart) => chart.update({xAxis: {max: null, min: null}}));
     } else {
         data = makeDataScal(counted, param, region);
-        let dataPoints = Object.values(data).map((dls) => Object.values(dls)).flat(2);
-        let minPoint = Math.min(...dataPoints.filter(Number));
-        let maxPoint = Math.max(...dataPoints.filter(Number));
-        Object.values(charts).forEach((chart) => chart.update({xAxis: {max: maxPoint, min: minPoint}}));
+        //let dataPoints = Object.values(data).map((dls) => Object.values(dls)).flat(2);
+        //let minPoint = Math.min(...dataPoints.filter(Number));
+        //let maxPoint = Math.max(...dataPoints.filter(Number));
+        //Object.values(charts).forEach((chart) => chart.update({xAxis: {max: maxPoint, min: minPoint}}));
     }
 
     let dayVal = dayValue(date, counted, labels, param, region);
@@ -214,6 +219,7 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
         "column"
     ) as Highcharts.SeriesColumnOptions;
     daySeries.id = "day";
+    daySeries.yAxis = 1;
     daySeries.maxPointWidth = 5;
     daySeries.color = COLORS.BLACK;
     daySeries.zIndex = -1;
@@ -242,7 +248,10 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
             charts[problem].update({
                 series: [daySeries, ...series],
                 xAxis: {categories: param == "wind" ? labels : null},
-                yAxis: {max: normalizeOption ? 1 : null, min: 0}
+                yAxis: [
+                    {max: normalizeOption ? 1 : null, min: 0},
+                    {max: 1, min: 0, visible: false}
+                ]
             }, true, true);
         } else {
             charts[problem].update({
@@ -250,7 +259,10 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
                 xAxis: {
                     categories: param == "wind" ? labels : null,
                 },
-                yAxis: {max: normalizeOption ? 1 : null, min: 0}
+                yAxis: [
+                    {max: normalizeOption ? 1 : null, min: 0},
+                    {max: 1, min: 0, visible: false}
+                ]
             }, true, true);
         }
     }
