@@ -331,6 +331,12 @@ function chartTemplate(title: string, type: string, yText: string, labels: strin
             }
         },
         xAxis: {
+            title: {
+                style: {
+                    fontSize: '20px',
+                    fontWeight: '600',
+                }
+            },
             labels: {
                 style: {
                     fontSize: '14px',

@@ -432,7 +432,7 @@ function countWeather(warnings: AvalancheWarning[]): CountedWeather {
                     } else if (isNaN(Number(sub.Value))) {
                         val = sub.Value;
                     } else {
-                        val = Number(sub.Value);
+                        val = Math.round(Number(sub.Value));
                     }
 
                     return [sub.Id, val]

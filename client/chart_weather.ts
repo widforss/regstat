@@ -1,7 +1,7 @@
 import * as Highcharts from 'highcharts';
 import { reduce } from '../webpack.config';
 import { chartTemplate, emptyArray_, makeSeries, Point } from './chart';
-import { COLORS } from './color';
+import { COLORS, MARKERS } from './color';
 
 type Charts = {[problem: string]: Highcharts.Chart};
 
@@ -11,7 +11,7 @@ interface Options {
     date: HTMLInputElement,
     normalize: HTMLInputElement,
 }
-type Param = "wind" | "temp (min)" | "temp (max)" | "downfall (mean)" | "downfall (max)"
+type Param = "vind" | "temperatur (min)" | "temperatur (max)" | "nedbør (snitt)" | "nedbør (max)"
 
 type DangerLevel = number;
 type Problem = number;
@@ -30,55 +30,72 @@ interface Weather {[tid: number]: {
     [subtid: number]: number
 }}
 
-const WIND_SPEEDS: {[spped: number]: string} = {
-    0: 'Calm',
-    6: 'Breeze',
-    9: 'Fresh breeze',
-    12: 'Strong breeze',
-    16: 'Moderate gale',
-    19: 'Gale',
-    23: 'Strong gale',
+const ALL_REGIONS: string = "Alle regioner";
+const ALL_PROBLEMS: string = "Alle skredproblem";
+
+const WIND_SPEEDS: {[speed: number]: string} = {
+    0: 'Stille/svak vind',
+    6: 'Bris',
+    9: 'Frisk bris',
+    12: 'Liten kuling',
+    16: 'Stiv kuling',
+    19: 'Sterk kuling',
+    23: 'Liten storm',
     26: 'Storm',
-    35: 'Hurricane force',
+    35: 'Orkan',
 };
 
 const PROBLEMS: string[] = [
-    'Wind-drifted snow',
-    'PWL',
-    'New snow (slab)',
-    'Wet snow (slab)',
-    'New snow (loose)',
-    'Wet snow (loose)',
-    'Glide',
+    ALL_PROBLEMS,
+    'Fokksnø',
+    'Nysnø (flakskred)',
+    'Våt snø (flakskred)',
+    'Vedvarende svakt lag',
+    'Nysnø (løssnøskred)',
+    'Wet snow (løssnøskred)',
+    'Glideskred',
 ];
 
 const PROBLEMS_ID: {[tid: number]: number} = {
-    3: 4,
-    5: 5,
+    3: 5,
+    5: 6,
     7: 2,
-    10: 0,
-    30: 1,
-    37: 1,
+    10: 1,
+    30: 4,
+    37: 4,
     45: 3,
-    50: 6,
+    50: 7,
+};
+
+const X_TITLE: {[name: string]: string} = {
+    "vind": "Vindhastighet",
+    "temperatur (min)": "Temperatur (min) [°C]",
+    "temperatur (max)": "Temperatur (max) [°C]",
+    "nedbør (max)": "Nedbør (max) [mm/24h]",
+    "nedbør (snitt)": "Nedbør (snitt) [mm/24h]",
+};
+
+const Y_TITLE: {[normalized: number]: string} = {
+    1: "P(verdi|faregrad)",
+    0: "n",
 };
 
 const GET: {[name: string]: (warning: Warning) => number | string} = {
-    wind: (warning) => WIND_SPEEDS[warning[2][20][20]],
-    "temp (min)": (warning) => warning[2][40][30],
-    "temp (max)": (warning) => warning[2][40][40],
-    "downfall (max)": (warning) => warning[2][10][60],
-    "downfall (mean)": (warning) => warning[2][10][70],
+    "vind": (warning) => WIND_SPEEDS[warning[2][20][20]],
+    "temperatur (min)": (warning) => warning[2][40][30],
+    "temperatur (max)": (warning) => warning[2][40][40],
+    "nedbør (max)": (warning) => warning[2][10][60],
+    "nedbør (snitt)": (warning) => warning[2][10][70],
 };
 
-function addCharts(counted: Counted) {
+function addCharts(counted: Counted, template: Options): Options {
     let root = document.getElementById("weather-charts");
     let container = document.createElement("div");
     container.classList.add("weather-charts-container");
 
     let close = () => { root.removeChild(container) };
 
-    let options = initOptions(counted, close, container);
+    let options = initOptions(counted, close, container, template);
     for (let option of Object.values(options)) {
         option.addEventListener("input", () => initWeather(counted, charts, options))
     }
@@ -91,7 +108,7 @@ function addCharts(counted: Counted) {
 
         let chart = initSplineChart(chartDiv, problem, '', [...Object.values(WIND_SPEEDS)]);
         chart.update({
-            yAxis: [{max: 1, min: 0}, {max: 1, min: 0, visible: false}],
+            yAxis: [{}, {max: 1, min: 0, visible: false}],
             chart: {
                 alignTicks: false,
             }
@@ -102,12 +119,15 @@ function addCharts(counted: Counted) {
     root.insertBefore(container, root.childNodes[root.childNodes.length - 1]);
 
     initWeather(counted, charts, options);
+
+    return options;
 }
 
 function initOptions(
     counted: Counted,
     close: () => void,
-    container: HTMLDivElement
+    container: HTMLDivElement,
+    template: Options,
 ): Options {
     let today2 = new Date(new Date().setDate(new Date().getDate() + 2));
     let dateStr = getDateStr(today2);
@@ -129,10 +149,10 @@ function initOptions(
 
     let dateSelector = document.createElement("input");
     let dateTitle = document.createElement("span");
-    dateTitle.innerText = "Date: ";
+    dateTitle.innerText = "Dato: ";
     dateSelector.min = "2017-09-01";
     dateSelector.max = dateStr;
-    dateSelector.value = getDateStr(new Date());
+    dateSelector.value = template ? template.date.value : getDateStr(new Date());
     dateSelector.type = "date";
     dateDiv.appendChild(dateTitle);
     dateDiv.appendChild(dateSelector);
@@ -143,11 +163,11 @@ function initOptions(
     paramTitle.innerText = "Parameter: ";
     paramDiv.appendChild(paramTitle);
     paramDiv.appendChild(paramSelector);
-    for (let param of ["Wind", "Temp (max)", "Temp (min)", "Downfall (max)", "Downfall (mean)"]) {
+    for (let param of ["Vind", "Temperatur (max)", "Temperatur (min)", "Nedbør (max)", "Nedbør (snitt)"]) {
         let paramOption = document.createElement("option");
         paramOption.value = param.toLowerCase();
         paramOption.innerText = param;
-        if (param == "wind") {
+        if (!template && param == "vind" || template && param.toLowerCase() == template.param.value) {
             paramOption.selected = true;
         }
         paramSelector.appendChild(paramOption);
@@ -159,11 +179,11 @@ function initOptions(
     regionTitle.innerText = "Region: ";
     regionDiv.appendChild(regionTitle);
     regionDiv.appendChild(regionSelector);
-    for (let region of Object.keys(counted)) {
+    for (let region of [ALL_REGIONS].concat(Object.keys(counted))) {
         let regionOption = document.createElement("option");
         regionOption.value = region;
         regionOption.innerText = region;
-        if (region == "Jotunheimen") {
+        if (!template && region == ALL_REGIONS || template && region == template.region.value) {
             regionOption.selected = true;
         }
         regionSelector.appendChild(regionOption);
@@ -172,8 +192,9 @@ function initOptions(
 
     let normalizeCheckbox = document.createElement("input");
     let normalizeTitle = document.createElement("span");
-    normalizeTitle.innerText = "Normalize: "
+    normalizeTitle.innerText = "Normalisere: "
     normalizeCheckbox.type = "checkbox";
+    normalizeCheckbox.checked = template ? template.normalize.checked : false;
     normalizeDiv.appendChild(normalizeTitle);
     normalizeDiv.appendChild(normalizeCheckbox);
     optionsDiv.appendChild(normalizeDiv);
@@ -194,16 +215,16 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
     let labels = null;
 
     let data;
-    if (param == "wind") {
+    if (param == "vind") {
         labels = Object.values(WIND_SPEEDS);
         data = makeDataCat(counted, labels, param, region);
-        //Object.values(charts).forEach((chart) => chart.update({xAxis: {max: null, min: null}}));
+        Object.values(charts).forEach((chart) => chart.update({xAxis: {max: null, min: null}}));
     } else {
         data = makeDataScal(counted, param, region);
-        //let dataPoints = Object.values(data).map((dls) => Object.values(dls)).flat(2);
-        //let minPoint = Math.min(...dataPoints.filter(Number));
-        //let maxPoint = Math.max(...dataPoints.filter(Number));
-        //Object.values(charts).forEach((chart) => chart.update({xAxis: {max: maxPoint, min: minPoint}}));
+        let dataPoints = Object.values(data).map((dls) => Object.values(dls)).flat(2);
+        let minPoint = Math.min(...dataPoints.filter(n => !isNaN(Number(n))));
+        let maxPoint = Math.max(...dataPoints.filter(n => !isNaN(Number(n))));
+        Object.values(charts).forEach((chart) => chart.update({xAxis: {max: maxPoint, min: minPoint}}));
     }
 
     let dayVal = dayValue(date, counted, labels, param, region);
@@ -233,10 +254,12 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
         if (problem in data) {
             series = Object.entries(data[problem]).map(([dl, data]) => {
                 let points;
-                points = param == "wind" ? normalize(data, normalizeOption) : reduceY(data, normalizeOption);
-                let series = makeSeries(dl, points, "spline", dl);
+                points = param == "vind" ? normalize(data, normalizeOption) : reduceY(data, normalizeOption);
+                let series: Highcharts.SeriesSplineOptions = makeSeries(dl, points, "spline", dl) as Highcharts.SeriesSplineOptions;
                 series.color = COLORS[`DL${dl}`];
                 series.legendIndex = Number(dl);
+                series.marker = {symbol: MARKERS[`DL${dl}`]};
+                series.turboThreshold = 0;
                 return series;
             });
         } else {
@@ -247,22 +270,24 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
         if (isDayVal) {
             charts[problem].update({
                 series: [daySeries, ...series],
-                xAxis: {categories: param == "wind" ? labels : null},
-                yAxis: [
-                    {max: normalizeOption ? 1 : null, min: 0},
-                    {max: 1, min: 0, visible: false}
-                ]
+                xAxis: {
+                    categories: param == "vind" ? labels : null,
+                    title: {text: X_TITLE[param]},
+                },
+                yAxis: [{
+                    title: {text: Y_TITLE[Number(normalizeOption)]}
+                }, {max: 1, min: 0}]
             }, true, true);
         } else {
             charts[problem].update({
                 series,
                 xAxis: {
-                    categories: param == "wind" ? labels : null,
+                    categories: param == "vind" ? labels : null,
+                    title: {text: X_TITLE[param]},
                 },
-                yAxis: [
-                    {max: normalizeOption ? 1 : null, min: 0},
-                    {max: 1, min: 0, visible: false}
-                ]
+                yAxis: [{
+                    title: {text: Y_TITLE[Number(normalizeOption)]}
+                }, {max: 1, min: 0, visible: false}]
             }, true, true);
         }
     }
@@ -303,8 +328,10 @@ function makeDataCat(
     filterRegion: string,
 ): {[problem: string]: {[dl: number]: number[]}} {
     let d: {[problem: string]: {[dl: number]: number[]}} = {};
+    d[ALL_PROBLEMS] = {}
+
     for (let [region, years] of Object.entries(counted) as [string, any][]) {
-        if (region != filterRegion) { continue }
+        if (region != filterRegion && filterRegion != ALL_REGIONS) { continue }
 
         for (let [_, months] of Object.entries(years) as any as [any, any][]) {
             for (let [_, days] of Object.entries(months) as any as [any, any][]) {
@@ -319,6 +346,9 @@ function makeDataCat(
                         continue;
                     }
 
+                    if (!(dl in d[ALL_PROBLEMS])) {
+                        d[ALL_PROBLEMS][dl] = emptyArray_(labels.length, 0);
+                    }
                     for (let problem of problems) {
                         if (!(problem in d)) {
                             d[problem] = {};
@@ -331,7 +361,8 @@ function makeDataCat(
                         let offset = labels.indexOf(datum as string);
                         if (offset < 0 || offset >= data.length) { continue }
 
-                        data[offset] += 1
+                        data[offset] += 1;
+                        d[ALL_PROBLEMS][dl][offset] += 1;
                     }
                 }
             }
@@ -346,8 +377,10 @@ function makeDataScal(
     filterRegion: string,
 ): {[problem: string]: {[dl: number]: number[]}} {
     let d: {[problem: string]: {[dl: number]: number[]}} = {};
+    d[ALL_PROBLEMS] = {}
+
     for (let [region, years] of Object.entries(counted) as [string, any][]) {
-        if (region != filterRegion) { continue }
+        if (region != filterRegion && filterRegion != ALL_REGIONS) { continue }
 
         for (let [_, months] of Object.entries(years) as any as [any, any][]) {
             for (let [_, days] of Object.entries(months) as any as [any, any][]) {
@@ -362,6 +395,9 @@ function makeDataScal(
                         continue;
                     }
 
+                    if (!(dl in d[ALL_PROBLEMS])) {
+                        d[ALL_PROBLEMS][dl] = [];
+                    }
                     for (let problem of problems) {
                         if (!(problem in d)) {
                             d[problem] = {};
@@ -370,6 +406,7 @@ function makeDataScal(
                             d[problem][dl] = [];
                         }
                         d[problem][dl].push(datum);
+                        d[ALL_PROBLEMS][dl].push(datum);
                     }
                 }
             }
@@ -444,4 +481,4 @@ function getDateStr(date: Date): string {
     return `${year}-${month}-${day}`
 }
 
-export {initWeather, addCharts, Charts, Counted};
+export {initWeather, addCharts, Charts, Counted, Options};
