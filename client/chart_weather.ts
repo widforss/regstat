@@ -253,15 +253,18 @@ function initWeather(counted: Counted, charts: Charts, options: Options) {
         let series: Highcharts.SeriesOptionsType[];
         if (problem in data) {
             series = Object.entries(data[problem]).map(([dl, data]) => {
-                let points;
-                points = param == "vind" ? normalize(data, normalizeOption) : reduceY(data, normalizeOption);
+                let length = param == "vind" ? data.reduce((ack, v) => ack + v, 0) : data.length;
+                if (length < 10) {
+                    return null;
+                }
+                let points = param == "vind" ? normalize(data, normalizeOption) : reduceY(data, normalizeOption);
                 let series: Highcharts.SeriesSplineOptions = makeSeries(dl, points, "spline", dl) as Highcharts.SeriesSplineOptions;
                 series.color = COLORS[`DL${dl}`];
                 series.legendIndex = Number(dl);
                 series.marker = {symbol: MARKERS[`DL${dl}`]};
                 series.turboThreshold = 0;
                 return series;
-            });
+            }).filter((series) => series !== null);
         } else {
             series = [];
         }
