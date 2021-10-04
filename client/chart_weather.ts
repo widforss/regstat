@@ -88,14 +88,19 @@ const GET: {[name: string]: (warning: Warning) => number | string} = {
     "nedbør (snitt)": (warning) => warning[2][10][70],
 };
 
-function addCharts(counted: Counted, template: Options): Options {
+function addCharts(counted: Counted, options_list: Options[]): Options {
     let root = document.getElementById("weather-charts");
     let container = document.createElement("div");
     container.classList.add("weather-charts-container");
 
-    let close = () => { root.removeChild(container) };
+    let options: Options;
+    let close = () => {
+        options_list.splice(options_list.indexOf(options), 1);
+        root.removeChild(container);
+    };
 
-    let options = initOptions(counted, close, container, template);
+    let template = options_list ? options_list[options_list.length - 1] : null;
+    options = initOptions(counted, close, container, template);
     for (let option of Object.values(options)) {
         option.addEventListener("input", () => initWeather(counted, charts, options))
     }

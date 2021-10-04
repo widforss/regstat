@@ -12,7 +12,7 @@ fetchData<Counted>("./api/weather", (counted) => {
     plus.innerText = "＋";
     plusDiv.classList.add("plus");
     plusDiv.onclick = () => {
-        column_options.push(addCharts(counted, column_options[column_options.length - 1]));
+        column_options.push(addCharts(counted, column_options));
     }
 
     column_options.push(addCharts(counted, null));
