@@ -12,7 +12,7 @@ interface Charts {
 const [START, STOP] = [new Date("1970-09-01"), new Date("1971-09-01")];
 const [START_CAL, STOP_CAL] = [new Date("1971-01-01"), new Date("1972-01-01")];
 
-const FILTER: {[keep: string]: (obses: [number, number[]][]) => [number, number[]][]} = {
+const FILTER: {[keep: string]: (obses: [number, number[], number][]) => [number, number[], number][]} = {
     all: (obses) => obses,
     allSnow: (obses) => obses.filter((obs) => obs[0] == 10),
     allSoilWater: (obses) => obses.filter((obs) => [20, 60].includes(obs[0])),
@@ -67,6 +67,7 @@ const FILTER: {[keep: string]: (obses: [number, number[]][]) => [number, number[
     assessment: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[1].includes(31)),
 
     notes: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[1].includes(10)),
+    surfacefacets: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 50),
 };
 
 interface Point {
@@ -163,7 +164,7 @@ function populateCharts(counted: Counted, charts: Charts) {
 
 function makeDataDate(
     counted: Counted,
-    filter: (obses: [number, number[]][]) => [number, number[]][],
+    filter: (obses: [number, number[], number][]) => [number, number[], number][],
     regions: Region[],
     hydrologicalYear: boolean = true,
     schemas: boolean = false,
@@ -184,7 +185,7 @@ function makeDataDate(
                 continue;
             }
             for (let [month, days] of Object.entries(months) as any as [number, any][]) {
-                for (let [day, obses] of Object.entries(days) as any as [number, [number, number[]][]][]) {
+                for (let [day, obses] of Object.entries(days) as any as [number, [number, number[], number][]][]) {
                     let trueDate = new Date(year, month - 1, day);
                     let date = new Date(trueDate);
 
@@ -225,7 +226,7 @@ function makeDataDate(
 
 function makeDataRegion(
     counted: Counted,
-    filter: (obses: [number, number[]][]) => [number, number[]][],
+    filter: (obses: [number, number[], number][]) => [number, number[], number][],
     regions: Region[],
     hydrologicalYear: boolean = true,
     schemas: boolean = false,
@@ -233,7 +234,7 @@ function makeDataRegion(
 ) {
     let seasons: {[season: string]: number[]} = {}
     let start = startStop(hydrologicalYear, leap)[0];
-    for (let [region, years] of Object.entries(counted) as [string, [number, number[]][]][]) {
+    for (let [region, years] of Object.entries(counted) as [string, [number, number[], number][]][]) {
         if (!regions.includes(region)) { continue }
 
         let hydroRemovedFirst = false;
@@ -243,7 +244,7 @@ function makeDataRegion(
                 continue;
             }
             for (let [month, days] of Object.entries(months) as any as [number, any][]) {
-                for (let [day, obses] of Object.entries(days) as any as [number, [number, number[]][]][]) {
+                for (let [day, obses] of Object.entries(days) as any as [number, [number, number[], number][]][]) {
                     let date = new Date(year, month - 1, day);
                     let season = getSeason(date, hydrologicalYear);
                     let addYear = date.getMonth() < start.getMonth() ? 1 : 0;

@@ -21,6 +21,9 @@ interface Observation {
         RegistrationTID: number,
         RegistrationName: string,
     }[],
+    SnowSurfaceObservation: {
+        SnowSurfaceTID: number,
+    }
 }
 
 interface AvalancheWarning {
@@ -64,7 +67,7 @@ type RegionId = number;
 type Tid = number;
 type DangerLevel = number;
 type Problem = number;
-type Counted = Map<Region, Map<Year, Map<Month, Map<Day, [Tid, Tid[]][]>>>>;
+type Counted = Map<Region, Map<Year, Map<Month, Map<Day, [Tid, Tid[], Tid][]>>>>;
 type CountedWeather = Map<
     Region, Map<
         Year, Map<
@@ -362,7 +365,8 @@ function count(observations: Observation[]): Counted {
 
         let prev = counted.get(region).get(year).get(month).get(day);
         let tids = obs.Summaries.map((summary) => summary.RegistrationTID);
-        prev.push([obs.GeoHazardTID, tids]);
+        let snowSurface = obs.SnowSurfaceObservation ? obs.SnowSurfaceObservation.SnowSurfaceTID : null;
+        prev.push([obs.GeoHazardTID, tids, snowSurface]);
     }
 
 
@@ -376,7 +380,7 @@ function count(observations: Observation[]): Counted {
             months = new Map([...months].sort(numSort).map(([month, dates]) => {
                 dates = new Map([...dates].sort(numSort).map(([date, obses]) => {
                     obses = obses
-                        .map(([gTid, rTids]) => [gTid, rTids.sort()])
+                        .map(([gTid, rTids, sTid]) => [gTid, rTids.sort(), sTid])
                         .sort(([gTidA, rTidsA], [_, rTidsB]) => {
                             let a = rTidsA as number[];
                             let b = rTidsB as number[];
@@ -384,7 +388,7 @@ function count(observations: Observation[]): Counted {
                                 return a[0] - b[0];
                             }
                             return a.length - b.length;
-                        }) as [number, number[]][];
+                        }) as [number, number[], number][];
                     return [date, obses]
                 }));
                 return [month, dates]

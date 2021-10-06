@@ -143,6 +143,7 @@ function initOptions(cachedCounted: Counted, charts: Charts) {
                 "Assessment": ["assessment", {}, snow],
             }, snow],
             "Notes": ["notes", {}, snow],
+            "Surface facets": ["surfacefacets", {}, snow],
         }, snow],
     }
     oDiv.filter.appendChild(checkboxTree(filterTree, "radio", "all"));
