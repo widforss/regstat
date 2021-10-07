@@ -67,7 +67,19 @@ const FILTER: {[keep: string]: (obses: [number, number[], number][]) => [number,
     assessment: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[1].includes(31)),
 
     notes: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[1].includes(10)),
-    surfacefacets: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 50),
+
+    surfaceforms: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] != null),
+    "30cmloose": (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 101),
+    "10-30cmloose": (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 102),
+    "1-10cmloose": (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 103),
+    SHhard: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 61),
+    SHsoft: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 62),
+    FC: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 50),
+    MFcr: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 107),
+    windslab: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 105),
+    stormslab: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 106),
+    wetloose: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 104),
+    other: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 108),
 };
 
 interface Point {

@@ -143,7 +143,19 @@ function initOptions(cachedCounted: Counted, charts: Charts) {
                 "Assessment": ["assessment", {}, snow],
             }, snow],
             "Notes": ["notes", {}, snow],
-            "Surface facets": ["surfacefacets", {}, snow],
+            "Snow surface forms": ["surfaceforms", {
+                ">30 cm loose snow": ["30cmloose", {}, snow],
+                "10–30 cm loose snow": ["10-30cmloose", {}, snow],
+                "1–10 cm loose snow": ["1-10cmloose", {}, snow],
+                "SH on hard surface": ["SHhard", {}, snow],
+                "SH on soft surface": ["SHsoft", {}, snow],
+                "Near surface facets": ["FC", {}, snow],
+                "Crust": ["MFcr", {}, snow],
+                "Wind slab": ["windslab", {}, snow],
+                "Storm slab": ["stormslab", {}, snow],
+                "Wet loose": ["wetloose", {}, snow],
+                "Other": ["other", {}, snow],
+            }, snow],
         }, snow],
     }
     oDiv.filter.appendChild(checkboxTree(filterTree, "radio", "all"));
