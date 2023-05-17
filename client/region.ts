@@ -13,6 +13,7 @@ const REGIONS_A: {[region: string]: number} = {
     "Ofoten": 3015,
     "Salten": 3016,
     "Svartisen": 3017,
+    "Helgeland": 3018,
     "Trollheimen": 3022,
     "Romsdal": 3023,
     "Sunnmøre": 3024,
@@ -31,7 +32,6 @@ const REGIONS_B: {[region: string]: number} = {
     "Svalbard sør": 3004,
     "Øst-Finnmark": 3005,
     "Finnmarksvidda": 3008,
-    "Helgeland": 3018,
     "Nord-Trøndelag": 3019,
     "Sør-Trøndelag": 3020,
     "Ytre Nordmøre": 3021,
@@ -181,9 +181,9 @@ const REGIONS_ICE = [
     "Viken",
 ];
 const REGIONS: {[region: string]: number} = {
+    ...REGIONS_C,
     ...REGIONS_A,
     ...REGIONS_B,
-    ...REGIONS_C
 }
 
 export {REGIONS, REGIONS_A, REGIONS_B, REGIONS_C, REGIONS_LAND, REGIONS_WATER, REGIONS_ICE, Region};

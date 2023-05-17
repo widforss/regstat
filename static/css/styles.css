@@ -166,9 +166,16 @@ input, select {
     margin-right: auto;
 }
 
-.charts-chart {
+.charts-chart, .map {
     margin-top: 40px;
+}
+
+.charts-chart, .map {
     height: 600px;
+}
+
+.map {
+    height: 900px;
 }
 
 .highcharts-legend-item .highcharts-point {

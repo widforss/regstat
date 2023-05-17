@@ -1,5 +1,6 @@
 import { populateCharts, Counted, Charts } from "./chart";
 import {REGIONS, REGIONS_A, REGIONS_B, Region, REGIONS_LAND, REGIONS_WATER, REGIONS_ICE} from "./region";
+import { Ol } from "./ol";
 
 interface Options {
     filter: string,
@@ -49,14 +50,16 @@ function getOptionsDom(): OptionsDom {
     return domObj as any as OptionsDom;
 }
 
-function initOptions(cachedCounted: Counted, charts: Charts) {
-    let onInput = () => populateCharts(cachedCounted, charts);
+function initOptions(cachedCounted: Counted, charts: Charts, map: Ol) {
+    let onInput = () => populateCharts(cachedCounted, charts, map);
 
     let oDiv = getOptionsDom(); // Not all children populated yet!
 
     let all = () => {
         mode = "all";
         document.getElementById("chart-regions").classList.add("hidden");
+        document.getElementById("chart-correct-forecast").classList.add("hidden");
+        document.getElementById("chart-correct-forecast-regions").classList.add("hidden");
         oDiv.regionsSnow.classList.add("hidden");
         oDiv.regionsLand.classList.add("hidden");
         oDiv.regionsWater.classList.add("hidden");
@@ -66,6 +69,8 @@ function initOptions(cachedCounted: Counted, charts: Charts) {
     let snow = () => {
         mode = "snow";
         document.getElementById("chart-regions").classList.remove("hidden");
+        document.getElementById("chart-correct-forecast").classList.remove("hidden");
+        document.getElementById("chart-correct-forecast-regions").classList.remove("hidden");
         oDiv.regionsSnow.classList.remove("hidden");
         oDiv.regionsLand.classList.add("hidden");
         oDiv.regionsWater.classList.add("hidden");
@@ -161,9 +166,9 @@ function initOptions(cachedCounted: Counted, charts: Charts) {
     oDiv.filter.appendChild(checkboxTree(filterTree, "radio", "all"));
 
     let regionTree: MenuTree = {
+        "No region": ["No region", {}, onInput],
         "A-regions": [null, {}, onInput],
         "B-regions": [null, {}, onInput],
-        "No region": ["No region", {}, onInput],
     }
     let iterator: [string, string[]][] = [
         ["A-regions", Object.keys(REGIONS_A)],
