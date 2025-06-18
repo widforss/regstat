@@ -1,5 +1,6 @@
 import * as Highcharts from 'highcharts';
 import { COLORS } from './color';
+import { Ol, populateMap } from './ol';
 import { getOptions } from './option';
 import { Region } from './region';
 
@@ -7,12 +8,27 @@ interface Charts {
     countChart: Highcharts.Chart,
     accChart: Highcharts.Chart,
     regionChart: Highcharts.Chart,
+    correctForecastChart: Highcharts.Chart,
+    correctForecastRegionChart: Highcharts.Chart,
 }
+
+type Position = [number, number];
+type Obs = [number, number[], number, Position, number, number];
 
 const [START, STOP] = [new Date("1970-09-01"), new Date("1971-09-01")];
 const [START_CAL, STOP_CAL] = [new Date("1971-01-01"), new Date("1972-01-01")];
 
-const FILTER: {[keep: string]: (obses: [number, number[]][]) => [number, number[]][]} = {
+const COMPETENCES: {[key: string]: number[]} = {
+    'competence-5': [150, 250, 350, 450, 650, 750],
+    'competence-4': [130, 240, 340, 440, 640, 740],
+    'competence-3': [120, 230, 330, 430, 630, 730],
+    'competence-2': [115, 220, 320, 420, 620, 720],
+    'competence-1': [110, 210, 310, 410, 610, 710],
+    'competence-0': [0, 100, 200, 300, 400, 600, 700],
+    'competence-a': [105]
+};
+
+const FILTER: {[keep: string]: (obses: Obs[]) => Obs[]} = {
     all: (obses) => obses,
     allSnow: (obses) => obses.filter((obs) => obs[0] == 10),
     allSoilWater: (obses) => obses.filter((obs) => [20, 60].includes(obs[0])),
@@ -67,6 +83,25 @@ const FILTER: {[keep: string]: (obses: [number, number[]][]) => [number, number[
     assessment: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[1].includes(31)),
 
     notes: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[1].includes(10)),
+
+    surfaceforms: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] != null),
+    "30cmloose": (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 101),
+    "10-30cmloose": (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 102),
+    "1-10cmloose": (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 103),
+    SHhard: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 61),
+    SHsoft: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 62),
+    FC: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 50),
+    MFcr: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 107),
+    windslab: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 105),
+    stormslab: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 106),
+    wetloose: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 104),
+    other: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[2] == 108),
+
+    // BELOW IS INTERNAL USE ONLY
+
+    tooHighForecasts: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[4] == 3),
+    tooCorrectForecasts: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[4] == 1),
+    tooLowForecasts: (obses) => FILTER["allSnow"](obses).filter((obs) => obs[4] == 2),
 };
 
 interface Point {
@@ -80,7 +115,7 @@ interface Counted {
     [region: number]: {
         [year: number]: {
             [month: number]: {
-                [day: string]: [number, number[]][]
+                [day: string]: [number, number[], number, [number, number], number][]
             }
         }
     }
@@ -109,25 +144,61 @@ function showCharts(): Charts {
         '',
         'Registered observations',
         regions,
-    )
+    );
+    let correctForecastChart = initLineChart(
+        'chart-correct-forecast',
+        '',
+        'Forecast feedack',
+        start,
+        stop,
+        "column"
+    );
+    let correctForecastRegionChart = initBarChart(
+        'chart-correct-forecast-regions',
+        '',
+        'Forecast feedback',
+        regions
+    );
     return {
         countChart,
         accChart,
         regionChart,
+        correctForecastChart,
+        correctForecastRegionChart,
     };
 }
 
-function populateCharts(counted: Counted, charts: Charts) {
+function populateCharts(counted: Counted, charts: Charts, map: Ol) {
     let options = getOptions()
     let regions = options.regions;
     let schema = options.schema;
     let hydro = options.hydrological;
     let average = options.average;
-    let filter = FILTER[options.filter];
+    let obs_filter = FILTER[options.filter];
+    
+    let exclude_competences = Object.keys(COMPETENCES).filter(x => !options.competences.includes(x));
+    let exclude_comps_tids: number[] = []
+    exclude_competences.forEach((comp) => {
+        exclude_comps_tids = exclude_comps_tids.concat(COMPETENCES[comp]);
+    });
+    console.log(exclude_competences);
+    console.log(exclude_comps_tids)
+    let filter = (obses: Obs[]) => obs_filter(obses).filter((obs) => !exclude_comps_tids.includes(obs[5]))
+        
+    let highForecastFilter = (obses: Obs[]) => FILTER["tooHighForecasts"](filter(obses));
+    let correctForecastFilter = (obses: Obs[]) => FILTER["tooCorrectForecasts"](filter(obses));
+    let lowForecastFilter = (obses: Obs[]) => FILTER["tooLowForecasts"](filter(obses));
+    let highForecasts = makeDataDate(counted, highForecastFilter, regions, hydro, schema, true);
+    let correctForecasts = makeDataDate(counted, correctForecastFilter, regions, hydro, schema, true);
+    let lowForecasts = makeDataDate(counted, lowForecastFilter, regions, hydro, schema, true);
+    let highForecastsRegion = makeDataRegion(counted, highForecastFilter, regions, hydro, schema, true);
+    let correctForecastsRegion = makeDataRegion(counted, correctForecastFilter, regions, hydro, schema, true);
+    let lowForecastsRegion = makeDataRegion(counted, lowForecastFilter, regions, hydro, schema, true);
 
     let seasons = makeDataDate(counted, filter, regions, hydro, schema, false);
     let seasonsAcc = makeDataDate(counted, filter, regions, hydro, schema, true);
     let seasonsRegions = makeDataRegion(counted, filter, regions, hydro, schema, true);
+    populateMap(counted, filter, regions, hydro, true, map)
 
     let [start, stop] = startStop(hydro, false);
     let [startLeap, stopLeap] = startStop(hydro, true);
@@ -159,11 +230,33 @@ function populateCharts(counted: Counted, charts: Charts) {
             categories: regions,
         }
     }, true, true);
+    charts.correctForecastRegionChart.update({
+        plotOptions: {
+            column: {
+                stacking: 'percent',
+            }
+        },
+        series: [
+            ...Object.entries(highForecastsRegion).map(([season, data], i) => makeSeries(season, [], "column", season)),
+            ...Object.entries(highForecastsRegion).map(([season, data], i) => {
+                return makeSeries(`${season} Forecast Too High`, data.map((y) => ({y, actualValue: y})), "column", `${season}H`, "orange", season, season);
+            }),
+            ...Object.entries(correctForecastsRegion).map(([season, data], i) => {
+                return makeSeries(`${season} Forecast Correct`, data.map((y) => ({y, actualValue: y})), "column", `${season}C`, "green", season, season);
+            }),
+            ...Object.entries(lowForecastsRegion).map(([season, data], i) => {
+                return makeSeries(`${season} Forecast Too Low`, data.map((y) => ({y, actualValue: y})), "column", `${season}L`, "red", season, season);
+            }),
+        ],
+        xAxis: {
+            categories: regions,
+        }
+    }, true, true);
 }
 
 function makeDataDate(
     counted: Counted,
-    filter: (obses: [number, number[]][]) => [number, number[]][],
+    filter: (obses: Obs[]) => Obs[],
     regions: Region[],
     hydrologicalYear: boolean = true,
     schemas: boolean = false,
@@ -184,7 +277,7 @@ function makeDataDate(
                 continue;
             }
             for (let [month, days] of Object.entries(months) as any as [number, any][]) {
-                for (let [day, obses] of Object.entries(days) as any as [number, [number, number[]][]][]) {
+                for (let [day, obses] of Object.entries(days) as any as [number, Obs[]][]) {
                     let trueDate = new Date(year, month - 1, day);
                     let date = new Date(trueDate);
 
@@ -225,7 +318,7 @@ function makeDataDate(
 
 function makeDataRegion(
     counted: Counted,
-    filter: (obses: [number, number[]][]) => [number, number[]][],
+    filter: (obses: Obs[]) => Obs[],
     regions: Region[],
     hydrologicalYear: boolean = true,
     schemas: boolean = false,
@@ -233,7 +326,7 @@ function makeDataRegion(
 ) {
     let seasons: {[season: string]: number[]} = {}
     let start = startStop(hydrologicalYear, leap)[0];
-    for (let [region, years] of Object.entries(counted) as [string, [number, number[]][]][]) {
+    for (let [region, years] of Object.entries(counted) as [string, [number, number[], number][]][]) {
         if (!regions.includes(region)) { continue }
 
         let hydroRemovedFirst = false;
@@ -243,7 +336,7 @@ function makeDataRegion(
                 continue;
             }
             for (let [month, days] of Object.entries(months) as any as [number, any][]) {
-                for (let [day, obses] of Object.entries(days) as any as [number, [number, number[]][]][]) {
+                for (let [day, obses] of Object.entries(days) as any as [number, Obs[]][]) {
                     let date = new Date(year, month - 1, day);
                     let season = getSeason(date, hydrologicalYear);
                     let addYear = date.getMonth() < start.getMonth() ? 1 : 0;
@@ -277,13 +370,19 @@ function makeSeries(
     data: Point[]|number[],
     type: "line" | "column" | "spline",
     id: string = null,
+    color: string = null,
+    link: string = null,
+    stack: string = null,
 ): Highcharts.SeriesLineOptions | Highcharts.SeriesColumnOptions | Highcharts.SeriesSplineOptions {
-    id = id ? id : title.slice(title.length - 2);
+    id = id ? id : title?.slice(title.length - 2);
     return {
         name: title,
         id,
         data,
         type,
+        color,
+        linkedTo: link,
+        stack,
     };
 }
 
@@ -292,7 +391,8 @@ function initLineChart(
     title: string,
     yText: string,
     start: Date,
-    stop: Date
+    stop: Date,
+    type: string = "line"
 ) {
     let dates = dateRange(start, stop);
     return Highcharts.chart(
@@ -331,6 +431,12 @@ function chartTemplate(title: string, type: string, yText: string, labels: strin
             }
         },
         xAxis: {
+            title: {
+                style: {
+                    fontSize: '20px',
+                    fontWeight: '600',
+                }
+            },
             labels: {
                 style: {
                     fontSize: '14px',
@@ -447,4 +553,18 @@ function intersection(a: number[], b: number[]): number[] {
     return a.filter((a1) => b.includes(a1))
 }
 
-export {populateCharts, showCharts, chartTemplate, makeSeries, intersection, emptyArray_, Charts, Counted, Point};
+export {
+    populateCharts,
+    showCharts,
+    chartTemplate,
+    makeSeries,
+    intersection,
+    emptyArray_,
+    getSeason,
+    startStop,
+    Charts,
+    Counted,
+    Point,
+    Obs,
+    Position
+};

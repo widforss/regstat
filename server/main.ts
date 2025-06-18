@@ -3,24 +3,35 @@ import e, * as express from "express";
 import * as fs from "fs";
 
 const PORT = 10418;
-const URL_REGOBS = "https://api.regobs.no/v4/Search";
+const URL_REGOBS = "https://api.regobs.no/v5/Search";
 const URL_VARSOM = "https://api01.nve.no/hydrology/forecast/avalanche/v4.0.2/api/AvalancheWarningByRegion/Detail"
 const REGOBS_N_RECORDS = 50;
 const VARSOM_N_RECORDS = 30;
 const PARALLEL_DOWNLOADS = 50;
 
 interface Observation {
+    AvalancheEvaluation3: {
+        ForecastCorrectTID: number,
+    },
     DtObsTime: string,
     DtRegTime: string,
     GeoHazardTID: number,
+    Observer: {
+        CompetenceLevelTID: number,
+    }
     ObsLocation: {
         ForecastRegionTID: number,
         ForecastRegionName: string,
+        Latitude: number,
+        Longitude: number,
     }
     Summaries: {
         RegistrationTID: number,
         RegistrationName: string,
     }[],
+    SnowSurfaceObservation: {
+        SnowSurfaceTID: number,
+    }
 }
 
 interface AvalancheWarning {
@@ -64,7 +75,8 @@ type RegionId = number;
 type Tid = number;
 type DangerLevel = number;
 type Problem = number;
-type Counted = Map<Region, Map<Year, Map<Month, Map<Day, [Tid, Tid[]][]>>>>;
+type Position = [number, number];
+type Counted = Map<Region, Map<Year, Map<Month, Map<Day, [Tid, Tid[], Tid, Position, Tid, Tid][]>>>>;
 type CountedWeather = Map<
     Region, Map<
         Year, Map<
@@ -75,7 +87,7 @@ type CountedWeather = Map<
     >
 >;
 
-const START_DATE = new Date(2017, 8, 1);
+const START_DATE = new Date(2022, 8, 1);
 const WIND_SPEEDS: {[name: string]: number} = {
     'Calm/light breeze': 0,
     'Breeze': 6,
@@ -154,7 +166,7 @@ const REGIONS: {[region: number]: Region} = {
   '2007': "Lysakerelva",//'LYSAKERELVA',
   '2008': "Sandvikelva",//'SANDVIKSELVA',
   '2009': "Årosvassdraget",//'ÅROSVASSDRAGET',
-  '2210': "Storelva/Kvænangen nord",
+  '2011': "Lierelva",
   '2012': "Drammensvassdraget",//'DRAMMENSVASSDRAGET',
   '2213': "Repparfjordvassdraget",
   '2015': "Numedalslågen og Siljansvassdraget",//'NUMEDALSLÅGEN OG SILJANVASSDRAGET',
@@ -165,6 +177,7 @@ const REGIONS: {[region: number]: Region} = {
   '2022': "Mandalselva",//'MANDALSELVA',
   '2027': "Bjerkreimvassdraget",//'BJERKREIMVASSDRAGET',
   '2028': "Figgjo",//'FIGGJO',
+  '2036': "Suldalsvassdraget",
   '2037': "Saudavassdraget",//'SAUDAVASSDRAGET',
   '2038': "Vikedalselva",//'VIKEDALSELVA',
   '2041': "Etnevassdraget",//'ETNEVASSDRAGET',
@@ -200,6 +213,8 @@ const REGIONS: {[region: number]: Region} = {
   '2095': "Ørstavassdraget",//'ØRSTAVASSDRAGET',
   '2096': "Hareidlandet og Gurskøya",//'HAREIDLANDET OG GURSKØYA',
   '2098': "Storfjorden sør, Sunnylvsfjorden og Geirangerfjord",//'STORFJORDEN SØR, SUNNYLVSFJORDEN OG GEIRANGERFJORD',
+  '2099': "Tafjordvassdraget",
+  '2101': "Ålesund og omegn",
   '2103': "Rauma",//'RAUMA',
   '2104': "Eira",//'EIRA',
   '2105': "Gusjåvassdraget",//'GUSJÅVASSDRAGET',
@@ -245,6 +260,7 @@ const REGIONS: {[region: number]: Region} = {
   '2206': "Kåfjordvassdraget",
   '2208': "Reisavassdraget",//'REISAVASSDRAGET',
   '2209': "Kvænangsvassdraget",//'KVÆNANGSVASSDRAGET',
+  '2210': "Storelva/Kvænangen nord",
   '2212': "Altavassdraget",//'ALTAVASSDRAGET',
   '2217': "Kvaløya",//'KVALØYA',
   '2221': "Magerøya",//'MAGERØYA',
@@ -346,6 +362,7 @@ function count(observations: Observation[]): Counted {
         let month = date.getMonth() + 1;
         let day = date.getDate();
         let region = getRegion(obs);
+        let position = getPosition(obs);
 
         if (!counted.has(region)) {
             counted.set(region, new Map());
@@ -362,7 +379,12 @@ function count(observations: Observation[]): Counted {
 
         let prev = counted.get(region).get(year).get(month).get(day);
         let tids = obs.Summaries.map((summary) => summary.RegistrationTID);
-        prev.push([obs.GeoHazardTID, tids]);
+        let snowSurface = obs.SnowSurfaceObservation ? obs.SnowSurfaceObservation.SnowSurfaceTID : null;
+        let correctForecast = null;
+        if ([120, 130, 150].includes(obs?.Observer.CompetenceLevelTID)) {
+            correctForecast = obs?.AvalancheEvaluation3?.ForecastCorrectTID;
+        }
+        prev.push([obs.GeoHazardTID, tids, snowSurface, position, correctForecast, obs.Observer.CompetenceLevelTID]);
     }
 
 
@@ -376,7 +398,7 @@ function count(observations: Observation[]): Counted {
             months = new Map([...months].sort(numSort).map(([month, dates]) => {
                 dates = new Map([...dates].sort(numSort).map(([date, obses]) => {
                     obses = obses
-                        .map(([gTid, rTids]) => [gTid, rTids.sort()])
+                        .map(([gTid, rTids, sTid, pos, cFTid, compTid]) => [gTid, rTids.sort(), sTid, pos, cFTid, compTid])
                         .sort(([gTidA, rTidsA], [_, rTidsB]) => {
                             let a = rTidsA as number[];
                             let b = rTidsB as number[];
@@ -384,7 +406,7 @@ function count(observations: Observation[]): Counted {
                                 return a[0] - b[0];
                             }
                             return a.length - b.length;
-                        }) as [number, number[]][];
+                        }) as [number, number[], number, Position, number, number][];
                     return [date, obses]
                 }));
                 return [month, dates]
@@ -432,7 +454,7 @@ function countWeather(warnings: AvalancheWarning[]): CountedWeather {
                     } else if (isNaN(Number(sub.Value))) {
                         val = sub.Value;
                     } else {
-                        val = Number(sub.Value);
+                        val = Math.round(Number(sub.Value));
                     }
 
                     return [sub.Id, val]
@@ -505,6 +527,12 @@ function getRegion(observation: Observation): Region {
         console.error(`Unknown region id ${id}: ${name}`);
     }
     return name;
+}
+
+function getPosition(observation: Observation): Position {
+    let lat = observation.ObsLocation.Latitude;
+    let lon = observation.ObsLocation.Longitude;
+    return [lat, lon];
 }
 
 function getRegionVarsom(warning: AvalancheWarning): Region {

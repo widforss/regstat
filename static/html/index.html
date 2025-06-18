@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap"
           rel="stylesheet">
     <link rel="stylesheet" href="./static/css/styles.css">
+    <link rel="stylesheet" href="./static/css/ol.css">
     <link rel="shortcut icon" type="image/x-icon" href="https://www.nve.no/favicon.ico" />
 </head>
 
@@ -58,6 +59,55 @@
                             <input type="radio" id="radio-hydro-cal" name="hydro">
                             Calendar
                         </label>
+                    </div>
+                </div>
+                <div class="bottom-margin">
+                    <div id="competence-legend" class="legend">
+                    Competence:
+                    </div>
+                    <div id="check-competence" class="checkbox-list">
+                        <div>
+                        <label>
+                            <input type="checkbox" id="check-competence-5" name="competence" value="competence-5" checked>
+                            *****
+                        </label><br>
+                        </div>
+                        <div>
+                        <label>
+                            <input type="checkbox" id="check-competence-4" name="competence" value="competence-4" checked>
+                            ****
+                        </label><br>
+                        </div>
+                        <div>
+                        <label>
+                            <input type="checkbox" id="check-competence-3" name="competence" value="competence-3" checked>
+                            ***
+                        </label><br>
+                        </div>
+                        <div>
+                        <label>
+                            <input type="checkbox" id="check-competence-2" name="competence" value="competence-2" checked>
+                            **
+                        </label><br>
+                        </div>
+                        <div>
+                        <label>
+                            <input type="checkbox" id="check-competence-1" name="competence" value="competence-1" checked>
+                            *
+                        </label><br>
+                        </div>
+                        <div>
+                        <label>
+                            <input type="checkbox" id="check-competence-0" name="competence" value="competence-0" checked>
+                            Unknown competence
+                        </label><br>
+                        </div>
+                        <div>
+                        <label>
+                            <input type="checkbox" id="check-competence-A" name="competence" value="competence-a" checked>
+                            Automatic submission
+                        </label><br>
+                        </div>
                     </div>
                 </div>
                 <div class="bottom-margin">
@@ -113,6 +163,9 @@
                 <div id="chart-count" class="charts-chart"></div>
                 <div id="chart-acc" class="charts-chart"></div>
                 <div id="chart-regions" class="charts-chart hidden"></div>
+                <div id="chart-correct-forecast" class="charts-chart hidden"></div>
+                <div id="chart-correct-forecast-regions" class="charts-chart hidden"></div>
+                <div id="chart-map" class="map"></div>
             </div>
         </div>
     </div>

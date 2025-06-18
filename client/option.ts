@@ -1,5 +1,6 @@
 import { populateCharts, Counted, Charts } from "./chart";
 import {REGIONS, REGIONS_A, REGIONS_B, Region, REGIONS_LAND, REGIONS_WATER, REGIONS_ICE} from "./region";
+import { Ol } from "./ol";
 
 interface Options {
     filter: string,
@@ -7,6 +8,7 @@ interface Options {
     regions: Region[],
     hydrological: boolean,
     schema: boolean,
+    competences: string[],
 }
 
 interface OptionsDom {
@@ -20,6 +22,7 @@ interface OptionsDom {
     radioSchema: HTMLInputElement,
     radioHydro: HTMLInputElement,
     radioCal: HTMLInputElement,
+    checkComp: HTMLInputElement,
 }
 
 type MenuTree = {[title: string]: [string, MenuTree, (box: HTMLInputElement) => void]}
@@ -33,6 +36,7 @@ function getOptionsDom(): OptionsDom {
         radioSchema: "radio-schema-schema",
         radioHydro: "radio-hydro-hydro",
         radioCal: "radio-hydro-cal",
+        checkComp: "check-competence"
     }
 
     let domObj: {[input: string]: HTMLElement | {[input: string]: HTMLElement}} = {};
@@ -49,14 +53,16 @@ function getOptionsDom(): OptionsDom {
     return domObj as any as OptionsDom;
 }
 
-function initOptions(cachedCounted: Counted, charts: Charts) {
-    let onInput = () => populateCharts(cachedCounted, charts);
+function initOptions(cachedCounted: Counted, charts: Charts, map: Ol) {
+    let onInput = () => populateCharts(cachedCounted, charts, map);
 
     let oDiv = getOptionsDom(); // Not all children populated yet!
 
     let all = () => {
         mode = "all";
         document.getElementById("chart-regions").classList.add("hidden");
+        document.getElementById("chart-correct-forecast").classList.add("hidden");
+        document.getElementById("chart-correct-forecast-regions").classList.add("hidden");
         oDiv.regionsSnow.classList.add("hidden");
         oDiv.regionsLand.classList.add("hidden");
         oDiv.regionsWater.classList.add("hidden");
@@ -66,6 +72,8 @@ function initOptions(cachedCounted: Counted, charts: Charts) {
     let snow = () => {
         mode = "snow";
         document.getElementById("chart-regions").classList.remove("hidden");
+        document.getElementById("chart-correct-forecast").classList.remove("hidden");
+        document.getElementById("chart-correct-forecast-regions").classList.remove("hidden");
         oDiv.regionsSnow.classList.remove("hidden");
         oDiv.regionsLand.classList.add("hidden");
         oDiv.regionsWater.classList.add("hidden");
@@ -143,14 +151,27 @@ function initOptions(cachedCounted: Counted, charts: Charts) {
                 "Assessment": ["assessment", {}, snow],
             }, snow],
             "Notes": ["notes", {}, snow],
+            "Snow surface forms": ["surfaceforms", {
+                ">30 cm loose snow": ["30cmloose", {}, snow],
+                "10–30 cm loose snow": ["10-30cmloose", {}, snow],
+                "1–10 cm loose snow": ["1-10cmloose", {}, snow],
+                "SH on hard surface": ["SHhard", {}, snow],
+                "SH on soft surface": ["SHsoft", {}, snow],
+                "Near surface facets": ["FC", {}, snow],
+                "Crust": ["MFcr", {}, snow],
+                "Wind slab": ["windslab", {}, snow],
+                "Storm slab": ["stormslab", {}, snow],
+                "Wet loose": ["wetloose", {}, snow],
+                "Other": ["other", {}, snow],
+            }, snow],
         }, snow],
     }
     oDiv.filter.appendChild(checkboxTree(filterTree, "radio", "all"));
 
     let regionTree: MenuTree = {
+        "No region": ["No region", {}, onInput],
         "A-regions": [null, {}, onInput],
         "B-regions": [null, {}, onInput],
-        "No region": ["No region", {}, onInput],
     }
     let iterator: [string, string[]][] = [
         ["A-regions", Object.keys(REGIONS_A)],
@@ -195,6 +216,7 @@ function initOptions(cachedCounted: Counted, charts: Charts) {
     oDiv.radioSchema.addEventListener("input", onInput);
     oDiv.radioHydro.addEventListener("input", onInput);
     oDiv.radioCal.addEventListener("input", onInput);
+    oDiv.checkComp.addEventListener("input", onInput);
     Object.values(oDiv.filter).forEach((elem) => elem.addEventListener("input", onInput))
     oDiv.average.addEventListener('input', () => {
         let value = parseInt(oDiv.average.value);
@@ -234,12 +256,15 @@ function getOptions(): Options {
         filter = "none";
     }
 
+    console.log(checkboxValues(oDiv.checkComp as HTMLDivElement))
+
     return {
         filter,
         average: parseInt(oDiv.average.value),
         regions,
         schema: oDiv.radioSchema.checked,
         hydrological: oDiv.radioHydro.checked,
+        competences: checkboxValues(oDiv.checkComp as HTMLDivElement),
     };
 }
 
@@ -341,13 +366,16 @@ function checkboxTree(
 function checkboxValues(root: HTMLDivElement): string[] {
     let values: string[] = [];
 
-    [...root.childNodes].forEach((main) => {
-        let primary = main.firstChild.firstChild as HTMLInputElement;
+    [...root?.children].forEach((main) => {
+        let primary = main?.children?.[0]?.children?.[0] as HTMLInputElement;
+        if (!primary) return;
         let secondary = main.lastChild as HTMLDivElement;
         if (primary.checked && primary.value) {
             values.push(primary.value);
         }
-        values = values.concat(checkboxValues(secondary));
+        if (secondary && secondary.nodeType != Node.TEXT_NODE) {
+            values = values.concat(checkboxValues(secondary));
+        }
     });
     return values;
 }
